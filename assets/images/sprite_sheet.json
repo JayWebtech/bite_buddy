@@ -1,0 +1,16 @@
+{
+  "sprites": [
+    {
+      "fileName": "pet-1.png",
+      "width": 1024,
+      "height": 1536,
+      "x": 0,
+      "y": 0
+    }
+  ],
+  "packMode": "grid",
+  "padding": 0,
+  "backgroundColor": "rgba(0, 0, 0, 0)",
+  "spriteSheetWidth": 1024,
+  "spriteSheetHeight": 1536
+}
