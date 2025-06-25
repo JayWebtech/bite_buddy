@@ -1,0 +1,1 @@
+{"version":1,"contracts":[{"id":"tqu34fb6lsst4","package_name":"contracts","contract_name":"BiteBuddy","module_path":"contracts::BiteBuddy::BiteBuddy","artifacts":{"sierra":"contracts_integrationtest_BiteBuddy.test.contract_class.json","casm":null}}]}

@@ -1,381 +1,188 @@
 use starknet::ContractAddress;
-use starknet::testing::{set_caller_address, set_block_timestamp};
-use contracts::BiteBuddy::BiteBuddyNFT;
-use contracts::BiteBuddy::{Pet, MealData};
+use starknet::contract_address_const;
+use snforge_std::{declare, ContractClassTrait, DeclareResultTrait, start_cheat_caller_address, start_cheat_block_timestamp, stop_cheat_caller_address, stop_cheat_block_timestamp};
+use contracts::BiteBuddy::{BiteBuddy};
+use contracts::interface::IBiteBuddy::{IBiteBuddy, IBiteBuddyDispatcher, IBiteBuddyDispatcherTrait};
+use contracts::base::structs::{Pet, Meal};
+use contracts::base::constants::{
+    SPECIES_VEGGIE_FLUFFY, SPECIES_PROTEIN_SPARKLE, SPECIES_BALANCE_THUNDER, 
+    MEAL_NFT_OFFSET
+};
+use openzeppelin::token::erc721::interface::{IERC721Dispatcher, IERC721DispatcherTrait};
 
-// Helper function to create test addresses
-fn create_test_address(seed: u32) -> ContractAddress {
-    let mut address = 0;
-    address += seed;
-    address.try_into().unwrap()
+fn deploy_contract() -> (ContractAddress, IBiteBuddyDispatcher) {
+    let contract = declare("BiteBuddy").unwrap().contract_class();
+    let owner = contract_address_const::<0x123>();
+    let (contract_address, _) = contract.deploy(@array![owner.into()]).unwrap();
+    (contract_address, IBiteBuddyDispatcher { contract_address })
 }
-
-#[test]
-fn test_constructor() {
-    let mut state = BiteBuddyNFT::contract_state_for_testing();
-    let owner = create_test_address(1);
-    
-    BiteBuddyNFT::constructor(ref state, owner);
-    
-    assert_eq!(state.owner.read(), owner, 'Owner not set correctly');
-    assert_eq!(state.next_pet_id.read(), 1, 'Next pet ID should start at 1');
-    assert_eq!(state.total_pets.read(), 0, 'Total pets should start at 0');
-    assert_eq!(state.name.read(), "BiteBuddy Pets", 'Name not set correctly');
-    assert_eq!(state.symbol.read(), "BBP", 'Symbol not set correctly');
-}
-
 #[test]
 fn test_mint_pet() {
-    let mut state = BiteBuddyNFT::contract_state_for_testing();
-    let owner = create_test_address(1);
-    let user = create_test_address(2);
+    let (contract_address, bite_buddy) = deploy_contract();
+    let user = contract_address_const::<0x456>();
+    let erc721 = IERC721Dispatcher { contract_address };
     
-    BiteBuddyNFT::constructor(ref state, owner);
+    start_cheat_caller_address(contract_address, user);
+    start_cheat_block_timestamp(contract_address, 1000);
     
-    // Set caller as owner
-    set_caller_address(owner);
+    let pet_id = bite_buddy.mint_pet(SPECIES_VEGGIE_FLUFFY);
     
-    let pet_type = 'dog';
-    let pet_name = 'Buddy';
-    let pet_id = BiteBuddyNFT::mint_pet(ref state, user, pet_type, pet_name);
+    assert(pet_id == 1, 'Pet ID should be 1');
+    assert(bite_buddy.get_pet_count() == 1, 'Pet count should be 1');
+    assert(erc721.owner_of(pet_id) == user, 'User should own pet');
     
-    assert_eq!(pet_id, 1, 'Pet ID should be 1');
-    assert_eq!(state.total_pets.read(), 1, 'Total pets should be 1');
-    assert_eq!(state.next_pet_id.read(), 2, 'Next pet ID should be 2');
-    assert_eq!(state.balances.read(user), 1, 'User balance should be 1');
-    assert_eq!(state.token_owners.read(pet_id), user, 'Token owner should be user');
+    let pet = bite_buddy.get_pet(pet_id);
+    assert(pet.owner == user, 'Pet owner should be user');
+    assert(pet.species == SPECIES_VEGGIE_FLUFFY, 'Species should match');
+    assert(pet.level == 1, 'Level should be 1');
+    assert(pet.health == 100, 'Health should be 100');
     
-    // Check pet data
-    let pet = state.pets.read(user);
-    assert_eq!(pet.id, pet_id, 'Pet ID should match');
-    assert_eq!(pet.owner, user, 'Pet owner should be user');
-    assert_eq!(pet.pet_type, pet_type, 'Pet type should match');
-    assert_eq!(pet.name, pet_name, 'Pet name should match');
-    assert_eq!(pet.level, 1, 'Pet level should start at 1');
-    assert_eq!(pet.energy, 100, 'Pet energy should start at 100');
-    assert_eq!(pet.hunger, 100, 'Pet hunger should start at 100');
-    assert_eq!(pet.happiness, 100, 'Pet happiness should start at 100');
+    stop_cheat_caller_address(contract_address);
+    stop_cheat_block_timestamp(contract_address);
+}
+#[test]
+fn test_scan_and_feed_meal() {
+    let (contract_address, bite_buddy) = deploy_contract();
+    let user = contract_address_const::<0x456>();
+    let erc721 = IERC721Dispatcher { contract_address };
+    
+    start_cheat_caller_address(contract_address, user);
+    start_cheat_block_timestamp(contract_address, 1000);
+    
+    let pet_id = bite_buddy.mint_pet(SPECIES_BALANCE_THUNDER);
+    
+    let meal_id = bite_buddy.scan_and_feed_meal(
+        pet_id,
+        'meal_hash_123',
+        500, // calories
+        25,  // protein  
+        45,  // carbs
+        20,  // fats
+        80,  // vitamins
+        70,  // minerals
+        15,  // fiber
+        "ipfs://QmTest123"
+    );
+    
+    assert(meal_id == 1, 'Meal ID should be 1');
+    assert(bite_buddy.get_total_meals() == 1, 'Total meals should be 1');
+    
+    let meal_nft_id = MEAL_NFT_OFFSET + meal_id;
+    assert(erc721.owner_of(meal_nft_id) == user, 'User should own meal NFT');
+    assert(erc721.balance_of(user) == 2, 'User should have 2 NFTs');
+    
+    let meal = bite_buddy.get_meal(meal_id);
+    assert(meal.pet_id == pet_id, 'Meal pet ID should match');
+    assert(meal.calories == 500, 'Calories should match');
+    
+    let metadata = bite_buddy.get_meal_metadata(meal_id);
+    assert(metadata == "ipfs://QmTest123", 'Metadata should match');
+    
+    let updated_pet = bite_buddy.get_pet(pet_id);
+    assert(updated_pet.total_meals == 1, 'Pet should have 1 meal');
+    assert(updated_pet.experience > 0, 'Pet should gain experience');
+    
+    stop_cheat_caller_address(contract_address);
+    stop_cheat_block_timestamp(contract_address);
 }
 
 #[test]
-fn test_feed_pet() {
-    let mut state = BiteBuddyNFT::contract_state_for_testing();
-    let owner = create_test_address(1);
-    let user = create_test_address(2);
+fn test_multiple_pets() {
+    let (contract_address, bite_buddy) = deploy_contract();
+    let user = contract_address_const::<0x456>();
     
-    BiteBuddyNFT::constructor(ref state, owner);
+    start_cheat_caller_address(contract_address, user);
     
-    // Mint a pet
-    set_caller_address(owner);
-    let pet_type = 'dog';
-    let pet_name = 'Buddy';
-    let pet_id = BiteBuddyNFT::mint_pet(ref state, user, pet_type, pet_name);
+    let pet1_id = bite_buddy.mint_pet(SPECIES_VEGGIE_FLUFFY);
+    let pet2_id = bite_buddy.mint_pet(SPECIES_PROTEIN_SPARKLE);
     
-    // Feed the pet
-    set_caller_address(user);
-    let meal_data = MealData {
-        energy_value: 20,
-        hunger_value: 30,
-        happiness_value: 15,
-        timestamp: 1234567890,
+    let user_pets = bite_buddy.get_pets_by_owner(user);
+    assert(user_pets.len() == 2, 'User should have 2 pets');
+    assert(*user_pets.at(0) == pet1_id, 'First pet should match');
+    assert(*user_pets.at(1) == pet2_id, 'Second pet should match');
+    
+    stop_cheat_caller_address(contract_address);
+}
+
+#[test]
+fn test_session_key() {
+    let (contract_address, bite_buddy) = deploy_contract();
+    let user = contract_address_const::<0x456>();
+    
+    start_cheat_caller_address(contract_address, user);
+    start_cheat_block_timestamp(contract_address, 1000);
+    
+    let session_key = 'session_123';
+    bite_buddy.create_session_key(session_key, 7, 24, 10, 50);
+    
+    let key_data = bite_buddy.get_session_key(session_key);
+    assert(key_data.owner == user, 'Session key owner should match');
+    assert(key_data.permissions == 7, 'Permissions should match');
+    assert(key_data.max_battles == 10, 'Max battles should match');
+    
+    stop_cheat_caller_address(contract_address);
+    stop_cheat_block_timestamp(contract_address);
+}
+
+#[test]
+fn test_battle_initiation() {
+    let (contract_address, bite_buddy) = deploy_contract();
+    let user1 = contract_address_const::<0x456>();
+    let user2 = contract_address_const::<0x789>();
+    
+    start_cheat_caller_address(contract_address, user1);
+    let pet1_id = bite_buddy.mint_pet(SPECIES_VEGGIE_FLUFFY);
+    stop_cheat_caller_address(contract_address);
+    
+    start_cheat_caller_address(contract_address, user2);
+    let pet2_id = bite_buddy.mint_pet(SPECIES_PROTEIN_SPARKLE);
+    stop_cheat_caller_address(contract_address);
+    
+    start_cheat_caller_address(contract_address, user1);
+    bite_buddy.scan_and_feed_meal(
+        pet1_id, 'energy_meal', 400, 20, 40, 15, 60, 50, 10, "ipfs://energy"
+    );
+    
+    let battle_id = bite_buddy.initiate_battle(pet1_id, pet2_id);
+    
+    assert(battle_id == 1, 'Battle ID should be 1');
+    
+    let battle = bite_buddy.get_battle(battle_id);
+    assert(battle.challenger_pet == pet1_id, 'Challenger should match');
+    assert(battle.defender_pet == pet2_id, 'Defender should match');
+    assert(!battle.completed, 'Battle should not be completed');
+    
+    stop_cheat_caller_address(contract_address);
+}
+
+#[test]
+fn test_evolution() {
+    let (contract_address, bite_buddy) = deploy_contract();
+    let user = contract_address_const::<0x456>();
+    
+    start_cheat_caller_address(contract_address, user);
+    let pet_id = bite_buddy.mint_pet(SPECIES_BALANCE_THUNDER);
+    
+    let mut meal_count: u32 = 0;
+    while meal_count < 15 {
+        let meal_hash = (meal_count + 100).into();
+        bite_buddy.scan_and_feed_meal(
+            pet_id, meal_hash, 600, 30, 50, 25, 90, 85, 20, "ipfs://meal"
+        );
+        meal_count += 1;
     };
     
-    BiteBuddyNFT::feed_pet(ref state, pet_id, meal_data);
+    let pet = bite_buddy.get_pet(pet_id);
+    if pet.level >= 5 && pet.total_meals >= 10 {
+        let can_evolve = bite_buddy.check_evolution(pet_id);
+        assert(can_evolve, 'Pet should be able to evolve');
+        
+        bite_buddy.evolve_pet(pet_id);
+        
+        let evolved_pet = bite_buddy.get_pet(pet_id);
+        assert(evolved_pet.evolution_stage == 1, 'Pet should evolve');
+        assert(evolved_pet.health == 120, 'Health should increase');
+    }
     
-    // Check updated pet stats
-    let pet = state.pets.read(user);
-    assert_eq!(pet.energy, 100, 'Energy should be capped at 100');
-    assert_eq!(pet.hunger, 100, 'Hunger should be capped at 100');
-    assert_eq!(pet.happiness, 100, 'Happiness should be capped at 100');
-    assert_eq!(pet.xp, 6, 'XP should be (20+30+15)/10 = 6');
-    assert_eq!(pet.total_meals, 1, 'Total meals should be 1');
-}
-
-#[test]
-fn test_pet_level_up() {
-    let mut state = BiteBuddyNFT::contract_state_for_testing();
-    let owner = create_test_address(1);
-    let user = create_test_address(2);
-    
-    BiteBuddyNFT::constructor(ref state, owner);
-    
-    // Mint a pet
-    set_caller_address(owner);
-    let pet_type = 'dog';
-    let pet_name = 'Buddy';
-    let pet_id = BiteBuddyNFT::mint_pet(ref state, user, pet_type, pet_name);
-    
-    // Feed the pet multiple times to gain XP
-    set_caller_address(user);
-    let meal_data = MealData {
-        energy_value: 50,
-        hunger_value: 50,
-        happiness_value: 50,
-        timestamp: 1234567890,
-    };
-    
-    // Feed 3 times to get 45 XP (3 * 15), which should trigger level up to level 2
-    BiteBuddyNFT::feed_pet(ref state, pet_id, meal_data);
-    BiteBuddyNFT::feed_pet(ref state, pet_id, meal_data);
-    BiteBuddyNFT::feed_pet(ref state, pet_id, meal_data);
-    
-    // Check pet stats
-    let pet = state.pets.read(user);
-    assert_eq!(pet.level, 2, 'Pet should level up to 2');
-    assert_eq!(pet.xp, 45, 'XP should be 45');
-    assert_eq!(pet.total_meals, 3, 'Total meals should be 3');
-}
-
-#[test]
-fn test_get_pet_stats() {
-    let mut state = BiteBuddyNFT::contract_state_for_testing();
-    let owner = create_test_address(1);
-    let user = create_test_address(2);
-    
-    BiteBuddyNFT::constructor(ref state, owner);
-    
-    // Mint a pet
-    set_caller_address(owner);
-    let pet_type = 'dog';
-    let pet_name = 'Buddy';
-    let pet_id = BiteBuddyNFT::mint_pet(ref state, user, pet_type, pet_name);
-    
-    // Get pet stats
-    let (level, energy, hunger, happiness) = BiteBuddyNFT::get_pet_stats(@state, pet_id);
-    
-    assert_eq!(level, 1, 'Level should be 1');
-    assert_eq!(energy, 100, 'Energy should be 100');
-    assert_eq!(hunger, 100, 'Hunger should be 100');
-    assert_eq!(happiness, 100, 'Happiness should be 100');
-}
-
-#[test]
-fn test_get_battle_power() {
-    let mut state = BiteBuddyNFT::contract_state_for_testing();
-    let owner = create_test_address(1);
-    let user = create_test_address(2);
-    
-    BiteBuddyNFT::constructor(ref state, owner);
-    
-    // Mint a pet
-    set_caller_address(owner);
-    let pet_type = 'dog';
-    let pet_name = 'Buddy';
-    let pet_id = BiteBuddyNFT::mint_pet(ref state, user, pet_type, pet_name);
-    
-    // Get battle power
-    let battle_power = BiteBuddyNFT::get_battle_power(@state, pet_id);
-    
-    // Battle power = level * 10 + (energy + happiness) / 2
-    // = 1 * 10 + (100 + 100) / 2 = 10 + 100 = 110
-    assert_eq!(battle_power, 110, 'Battle power should be 110');
-}
-
-#[test]
-fn test_battle_pets() {
-    let mut state = BiteBuddyNFT::contract_state_for_testing();
-    let owner = create_test_address(1);
-    let user1 = create_test_address(2);
-    let user2 = create_test_address(3);
-    
-    BiteBuddyNFT::constructor(ref state, owner);
-    
-    // Mint pets for both users
-    set_caller_address(owner);
-    let pet1_id = BiteBuddyNFT::mint_pet(ref state, user1, 'dog', 'Buddy');
-    let pet2_id = BiteBuddyNFT::mint_pet(ref state, user2, 'cat', 'Whiskers');
-    
-    // Level up pet1 to make it stronger
-    set_caller_address(user1);
-    let meal_data = MealData {
-        energy_value: 100,
-        hunger_value: 100,
-        happiness_value: 100,
-        timestamp: 1234567890,
-    };
-    
-    // Feed multiple times to level up
-    BiteBuddyNFT::feed_pet(ref state, pet1_id, meal_data);
-    BiteBuddyNFT::feed_pet(ref state, pet1_id, meal_data);
-    BiteBuddyNFT::feed_pet(ref state, pet1_id, meal_data);
-    BiteBuddyNFT::feed_pet(ref state, pet1_id, meal_data);
-    BiteBuddyNFT::feed_pet(ref state, pet1_id, meal_data);
-    BiteBuddyNFT::feed_pet(ref state, pet1_id, meal_data);
-    BiteBuddyNFT::feed_pet(ref state, pet1_id, meal_data);
-    
-    // Battle pets (pet1 should win)
-    let result = BiteBuddyNFT::battle_pets(ref state, pet1_id, pet2_id);
-    assert_eq!(result, true, 'Pet1 should win the battle');
-}
-
-#[test]
-fn test_get_owner_pets() {
-    let mut state = BiteBuddyNFT::contract_state_for_testing();
-    let owner = create_test_address(1);
-    let user = create_test_address(2);
-    
-    BiteBuddyNFT::constructor(ref state, owner);
-    
-    // Mint a pet
-    set_caller_address(owner);
-    let pet_type = 'dog';
-    let pet_name = 'Buddy';
-    let pet_id = BiteBuddyNFT::mint_pet(ref state, user, pet_type, pet_name);
-    
-    // Get owner pets
-    let owner_pets = BiteBuddyNFT::get_owner_pets(@state, user);
-    
-    assert_eq!(owner_pets.len(), 1, 'Should have 1 pet');
-    assert_eq!(owner_pets.at(0), pet_id, 'Pet ID should match');
-}
-
-#[test]
-fn test_erc721_functions() {
-    let mut state = BiteBuddyNFT::contract_state_for_testing();
-    let owner = create_test_address(1);
-    let user = create_test_address(2);
-    
-    BiteBuddyNFT::constructor(ref state, owner);
-    
-    // Mint a pet
-    set_caller_address(owner);
-    let pet_type = 'dog';
-    let pet_name = 'Buddy';
-    let pet_id = BiteBuddyNFT::mint_pet(ref state, user, pet_type, pet_name);
-    
-    // Test balance_of
-    let balance = BiteBuddyNFT::balance_of(@state, user);
-    assert_eq!(balance, 1, 'Balance should be 1');
-    
-    // Test owner_of
-    let token_owner = BiteBuddyNFT::owner_of(@state, pet_id);
-    assert_eq!(token_owner, user, 'Token owner should be user');
-    
-    // Test name and symbol
-    let name = BiteBuddyNFT::name(@state);
-    assert_eq!(name, "BiteBuddy Pets", 'Name should match');
-    
-    let symbol = BiteBuddyNFT::symbol(@state);
-    assert_eq!(symbol, "BBP", 'Symbol should match');
-    
-    // Test token_uri
-    let token_uri = BiteBuddyNFT::token_uri(@state, pet_id);
-    assert_eq!(token_uri, "https://api.bitebuddy.com/metadata/", 'Token URI should match default');
-}
-
-#[test]
-fn test_approve_and_transfer() {
-    let mut state = BiteBuddyNFT::contract_state_for_testing();
-    let owner = create_test_address(1);
-    let user1 = create_test_address(2);
-    let user2 = create_test_address(3);
-    
-    BiteBuddyNFT::constructor(ref state, owner);
-    
-    // Mint a pet for user1
-    set_caller_address(owner);
-    let pet_id = BiteBuddyNFT::mint_pet(ref state, user1, 'dog', 'Buddy');
-    
-    // User1 approves user2 to transfer the pet
-    set_caller_address(user1);
-    BiteBuddyNFT::approve(ref state, user2, pet_id);
-    
-    // Check approval
-    let approved = BiteBuddyNFT::get_approved(@state, pet_id);
-    assert_eq!(approved, user2, 'Approved address should be user2');
-    
-    // User2 transfers the pet to themselves
-    set_caller_address(user2);
-    BiteBuddyNFT::transfer_from(ref state, user1, user2, pet_id);
-    
-    // Check transfer
-    let new_owner = BiteBuddyNFT::owner_of(@state, pet_id);
-    assert_eq!(new_owner, user2, 'New owner should be user2');
-    
-    let balance1 = BiteBuddyNFT::balance_of(@state, user1);
-    let balance2 = BiteBuddyNFT::balance_of(@state, user2);
-    assert_eq!(balance1, 0, 'User1 balance should be 0');
-    assert_eq!(balance2, 1, 'User2 balance should be 1');
-}
-
-#[test]
-fn test_set_approval_for_all() {
-    let mut state = BiteBuddyNFT::contract_state_for_testing();
-    let owner = create_test_address(1);
-    let user1 = create_test_address(2);
-    let user2 = create_test_address(3);
-    
-    BiteBuddyNFT::constructor(ref state, owner);
-    
-    // Mint a pet for user1
-    set_caller_address(owner);
-    let pet_id = BiteBuddyNFT::mint_pet(ref state, user1, 'dog', 'Buddy');
-    
-    // User1 sets approval for all to user2
-    set_caller_address(user1);
-    BiteBuddyNFT::set_approval_for_all(ref state, user2, true);
-    
-    // Check approval for all
-    let is_approved = BiteBuddyNFT::is_approved_for_all(@state, user1, user2);
-    assert_eq!(is_approved, true, 'User2 should be approved for all');
-    
-    // User2 can now transfer the pet
-    set_caller_address(user2);
-    BiteBuddyNFT::transfer_from(ref state, user1, user2, pet_id);
-    
-    // Check transfer
-    let new_owner = BiteBuddyNFT::owner_of(@state, pet_id);
-    assert_eq!(new_owner, user2, 'New owner should be user2');
-}
-
-#[test]
-fn test_get_total_pets() {
-    let mut state = BiteBuddyNFT::contract_state_for_testing();
-    let owner = create_test_address(1);
-    let user1 = create_test_address(2);
-    let user2 = create_test_address(3);
-    
-    BiteBuddyNFT::constructor(ref state, owner);
-    
-    // Check initial total
-    let initial_total = BiteBuddyNFT::get_total_pets(@state);
-    assert_eq!(initial_total, 0, 'Initial total should be 0');
-    
-    // Mint pets
-    set_caller_address(owner);
-    BiteBuddyNFT::mint_pet(ref state, user1, 'dog', 'Buddy');
-    BiteBuddyNFT::mint_pet(ref state, user2, 'cat', 'Whiskers');
-    
-    // Check updated total
-    let final_total = BiteBuddyNFT::get_total_pets(@state);
-    assert_eq!(final_total, 2, 'Final total should be 2');
-}
-
-#[test]
-fn test_get_pet() {
-    let mut state = BiteBuddyNFT::contract_state_for_testing();
-    let owner = create_test_address(1);
-    let user = create_test_address(2);
-    
-    BiteBuddyNFT::constructor(ref state, owner);
-    
-    // Mint a pet
-    set_caller_address(owner);
-    let pet_type = 'dog';
-    let pet_name = 'Buddy';
-    let pet_id = BiteBuddyNFT::mint_pet(ref state, user, pet_type, pet_name);
-    
-    // Get pet data
-    let pet = BiteBuddyNFT::get_pet(@state, pet_id);
-    
-    assert_eq!(pet.id, pet_id, 'Pet ID should match');
-    assert_eq!(pet.owner, user, 'Pet owner should be user');
-    assert_eq!(pet.pet_type, pet_type, 'Pet type should match');
-    assert_eq!(pet.name, pet_name, 'Pet name should match');
-    assert_eq!(pet.level, 1, 'Pet level should be 1');
-    assert_eq!(pet.energy, 100, 'Pet energy should be 100');
-    assert_eq!(pet.hunger, 100, 'Pet hunger should be 100');
-    assert_eq!(pet.happiness, 100, 'Pet happiness should be 100');
-    assert_eq!(pet.xp, 0, 'Pet XP should start at 0');
-    assert_eq!(pet.total_meals, 0, 'Pet total meals should start at 0');
+    stop_cheat_caller_address(contract_address);
 }

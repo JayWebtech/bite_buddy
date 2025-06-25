@@ -1,5 +1,6 @@
 import GameAlert from '@/components/ui/GameAlert';
 import GameButton from '@/components/ui/GameButton';
+import { MintPetPrompt } from '@/components/ui/MintPetPrompt';
 import { Colors, getNutritionColor } from '@/constants/Colors';
 import { getEnergyDescription, getHappinessDescription, getHungerDescription, getNutritionGrade, mealAnalyzer, NutritionAnalysis } from '@/utils/mealAnalysis';
 import { walletManager } from '@/utils/wallet';
@@ -638,65 +639,67 @@ export default function ScanScreen() {
 
   // Main scan screen
   return (
-    <View style={styles.wrapper}>
-      <Image
-        source={require('@/assets/images/bg_screen_2.png')}
-        style={styles.backgroundImage}
-        contentFit="cover"
-      />
-      <View style={styles.darkOverlay} />
-      
-      <View style={styles.container}>
-        <View style={styles.content}>
-          <View style={styles.headerSection}>
-            <Text style={styles.mainTitle}>🍽️ Food Scanner</Text>
-            <Text style={styles.subtitle}>
-              Snap a photo of your meal to feed your pet!
-            </Text>
-            <Text style={styles.description}>
-              Our AI chef will analyze the nutrition and reward your pet accordingly
-            </Text>
-          </View>
-          
-          <View style={styles.featuresSection}>
-            <View style={styles.featureCard}>
-              <Text style={styles.featureEmoji}>🤖</Text>
-              <Text style={styles.featureTitle}>AI Analysis</Text>
-              <Text style={styles.featureDescription}>Advanced nutrition recognition</Text>
+    <MintPetPrompt>
+      <View style={styles.wrapper}>
+        <Image
+          source={require('@/assets/images/bg_screen_2.png')}
+          style={styles.backgroundImage}
+          contentFit="cover"
+        />
+        <View style={styles.darkOverlay} />
+        
+        <View style={styles.container}>
+          <View style={styles.content}>
+            <View style={styles.headerSection}>
+              <Text style={styles.mainTitle}>🍽️ Food Scanner</Text>
+              <Text style={styles.subtitle}>
+                Snap a photo of your meal to feed your pet!
+              </Text>
+              <Text style={styles.description}>
+                Our AI chef will analyze the nutrition and reward your pet accordingly
+              </Text>
             </View>
-            <View style={styles.featureCard}>
-              <Text style={styles.featureEmoji}>🏆</Text>
-              <Text style={styles.featureTitle}>NFT Rewards</Text>
-              <Text style={styles.featureDescription}>Collectible meal tokens</Text>
+            
+            <View style={styles.featuresSection}>
+              <View style={styles.featureCard}>
+                <Text style={styles.featureEmoji}>🤖</Text>
+                <Text style={styles.featureTitle}>AI Analysis</Text>
+                <Text style={styles.featureDescription}>Advanced nutrition recognition</Text>
+              </View>
+              <View style={styles.featureCard}>
+                <Text style={styles.featureEmoji}>🏆</Text>
+                <Text style={styles.featureTitle}>NFT Rewards</Text>
+                <Text style={styles.featureDescription}>Collectible meal tokens</Text>
+              </View>
+              <View style={styles.featureCard}>
+                <Text style={styles.featureEmoji}>📈</Text>
+                <Text style={styles.featureTitle}>Pet Growth</Text>
+                <Text style={styles.featureDescription}>Level up your companion</Text>
+              </View>
             </View>
-            <View style={styles.featureCard}>
-              <Text style={styles.featureEmoji}>📈</Text>
-              <Text style={styles.featureTitle}>Pet Growth</Text>
-              <Text style={styles.featureDescription}>Level up your companion</Text>
+            
+            <View style={styles.buttonContainer}>
+              <GameButton
+                title="Open Camera"
+                onPress={openCamera}
+                variant="primary"
+                size="large"
+              />
             </View>
-          </View>
-          
-          <View style={styles.buttonContainer}>
-            <GameButton
-              title="Open Camera"
-              onPress={openCamera}
-              variant="primary"
-              size="large"
-            />
           </View>
         </View>
-      </View>
 
-      <GameAlert
-        visible={gameAlert.visible}
-        title={gameAlert.title}
-        message={gameAlert.message}
-        icon={gameAlert.icon}
-        iconType={gameAlert.icon === 'success' ? 'image' : 'emoji'}
-        buttons={gameAlert.buttons}
-        onClose={hideGameAlert}
-      />
-    </View>
+        <GameAlert
+          visible={gameAlert.visible}
+          title={gameAlert.title}
+          message={gameAlert.message}
+          icon={gameAlert.icon}
+          iconType={gameAlert.icon === 'success' ? 'image' : 'emoji'}
+          buttons={gameAlert.buttons}
+          onClose={hideGameAlert}
+        />
+      </View>
+    </MintPetPrompt>
   );
 
   function getGradeColor(grade: string): string {

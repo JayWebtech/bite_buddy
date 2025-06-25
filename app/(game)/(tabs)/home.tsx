@@ -1,5 +1,6 @@
 import GameAlert from '@/components/ui/GameAlert';
 import GameButton from '@/components/ui/GameButton';
+import { MintPetPrompt } from '@/components/ui/MintPetPrompt';
 import { Colors, getStatColor } from '@/constants/Colors';
 import { walletManager } from '@/utils/wallet';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,10 +8,8 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import LottieView from 'lottie-react-native';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { shortString } from 'starknet';
-
-const { width, height } = Dimensions.get('window');
 
 interface PetStats {
   hunger: number;
@@ -224,7 +223,6 @@ const InteractivePet: React.FC<{
 
   return (
     <View style={styles.interactivePetContainer}>
-      {/* Main pet container */}
       <Animated.View
         style={[
           styles.petAnimationContainer,
@@ -233,7 +231,6 @@ const InteractivePet: React.FC<{
           }
         ]}
       >
-        {/* Interactive Lottie Pet */}
         <LottieView
           ref={lottieRef}
           source={petAnimationMap[petName] || require('@/assets/animations/lottie-1.json')} // Dynamic pet animation
@@ -242,8 +239,6 @@ const InteractivePet: React.FC<{
           loop={!isInteracting}
           speed={1}
         />
-
-        {/* Interaction zones */}
         
         {/* Head petting zone */}
         <TouchableOpacity
@@ -355,7 +350,7 @@ export default function HomeScreen() {
       //  total_meals_low, total_meals_high, created_at]
 
       if (response.length < 19) {
-        console.error('Invalid response length:', response.length);
+        console.log('Invalid response length:', response.length);
         return null;
       }
 
@@ -401,7 +396,7 @@ export default function HomeScreen() {
 
       return pet;
     } catch (error) {
-      console.error('Error parsing pet contract response:', error);
+      console.log('Error parsing pet contract response:', error);
       return null;
     }
   };
@@ -443,7 +438,7 @@ export default function HomeScreen() {
         });
       }
     } catch (error) {
-      console.error('Error fetching pet data:', error);
+      console.log('Error fetching pet data:', error);
       setShowAlert({
         visible: true,
         title: 'Error',
@@ -562,102 +557,104 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={styles.wrapper}>
-      <Image
-        source={require('@/assets/images/bg_screen_2.png')}
-        style={styles.backgroundImage}
-        contentFit="cover"
-      />
-      
-      {/* Dark overlay */}
-      <View style={styles.darkOverlay} />
-      
-      <ScrollView style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerInfo}>
-            <Text style={styles.levelText}>Level {petStats.level}</Text>
-            <Text style={styles.xpText}>XP: {petStats.xp}/{(petStats.level * 100)}</Text>
-            {petData && (
-              <Text style={styles.petIdText}>Pet ID: #{petData.id}</Text>
-            )}
-          </View>
-          <View style={styles.headerRight}>
-          <View style={styles.coinsContainer}>
-            <Text style={styles.coinsText}>💰 {coins}</Text>
+    <MintPetPrompt>
+      <View style={styles.wrapper}>
+        <Image
+          source={require('@/assets/images/bg_screen_2.png')}
+          style={styles.backgroundImage}
+          contentFit="cover"
+        />
+        
+        {/* Dark overlay */}
+        <View style={styles.darkOverlay} />
+        
+        <ScrollView style={styles.container}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerInfo}>
+              <Text style={styles.levelText}>Level {petStats.level}</Text>
+              <Text style={styles.xpText}>XP: {petStats.xp}/{(petStats.level * 100)}</Text>
+              {petData && (
+                <Text style={styles.petIdText}>Pet ID: #{petData.id}</Text>
+              )}
             </View>
-            <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
-              <Ionicons name="refresh" size={20} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Interactive Pet Display */}
-        <InteractivePet
-          stats={petStats}
-          onFeed={handlePetInteraction}
-          onPet={handlePetPetting}
-          onPlay={handlePetPlaying}
-          petName={petName}
-          petType={petType}
-        />
-
-        {/* Stats */}
-        <View style={styles.statsSection}>
-          <StatBar label="Hunger" value={petStats.hunger} emoji="🍽️" />
-          <StatBar label="Happiness" value={petStats.happiness} emoji="❤️" />
-          <StatBar label="Energy" value={petStats.energy} emoji="⚡" />
-        </View>
-
-        {/* Food Items */}
-        <View style={styles.foodSection}>
-          <Text style={styles.sectionTitle}>Feed Your Pet</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.foodScroll}>
-            {foodItems.map((food) => (
-              <TouchableOpacity
-                key={food.id}
-                style={[
-                  styles.foodItem,
-                  coins < food.cost && styles.foodItemDisabled
-                ]}
-                onPress={() => feedPet(food)}
-                disabled={coins < food.cost}
-              >
-                <Text style={styles.foodEmoji}>{food.emoji}</Text>
-                <Text style={styles.foodName}>{food.name}</Text>
-                <Text style={styles.foodNutrition}>+{food.nutritionScore} nutrition</Text>
-                <Text style={styles.foodCost}>💰 {food.cost}</Text>
+            <View style={styles.headerRight}>
+            <View style={styles.coinsContainer}>
+              <Text style={styles.coinsText}>💰 {coins}</Text>
+              </View>
+              <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+                <Ionicons name="refresh" size={20} color="#FFFFFF" />
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+            </View>
+          </View>
 
-        {/* Action Buttons */}
-        <View style={styles.actionsSection}>
-          <GameButton
-          title='Scan meal'
-            variant='primary'
-            onPress={() => router.push('/(game)/meal-scan')}
+          {/* Interactive Pet Display */}
+          <InteractivePet
+            stats={petStats}
+            onFeed={handlePetInteraction}
+            onPet={handlePetPetting}
+            onPlay={handlePetPlaying}
+            petName={petName}
+            petType={petType}
           />
 
-<GameButton
-          title='Go to battle'
-            variant='success'
-            onPress={() => router.push('/(game)/(tabs)/battle')}
-          />
-        </View>
+          {/* Stats */}
+          <View style={styles.statsSection}>
+            <StatBar label="Hunger" value={petStats.hunger} emoji="🍽️" />
+            <StatBar label="Happiness" value={petStats.happiness} emoji="❤️" />
+            <StatBar label="Energy" value={petStats.energy} emoji="⚡" />
+          </View>
 
-        {/* Custom Alert */}
-        <GameAlert
-          visible={showAlert.visible}
-          title={showAlert.title}
-          message={showAlert.message}
-          icon={showAlert.icon}
-          iconType="image"
-          onClose={() => setShowAlert(prev => ({ ...prev, visible: false }))}
-        />
-      </ScrollView>
-    </View>
+          {/* Food Items */}
+          <View style={styles.foodSection}>
+            <Text style={styles.sectionTitle}>Feed Your Pet</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.foodScroll}>
+              {foodItems.map((food) => (
+                <TouchableOpacity
+                  key={food.id}
+                  style={[
+                    styles.foodItem,
+                    coins < food.cost && styles.foodItemDisabled
+                  ]}
+                  onPress={() => feedPet(food)}
+                  disabled={coins < food.cost}
+                >
+                  <Text style={styles.foodEmoji}>{food.emoji}</Text>
+                  <Text style={styles.foodName}>{food.name}</Text>
+                  <Text style={styles.foodNutrition}>+{food.nutritionScore} nutrition</Text>
+                  <Text style={styles.foodCost}>💰 {food.cost}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionsSection}>
+            <GameButton
+            title='Scan meal'
+              variant='primary'
+              onPress={() => router.push('/(game)/meal-scan')}
+            />
+
+  <GameButton
+            title='Go to battle'
+              variant='success'
+              onPress={() => router.push('/(game)/(tabs)/battle')}
+            />
+          </View>
+
+          {/* Custom Alert */}
+          <GameAlert
+            visible={showAlert.visible}
+            title={showAlert.title}
+            message={showAlert.message}
+            icon={showAlert.icon}
+            iconType="image"
+            onClose={() => setShowAlert(prev => ({ ...prev, visible: false }))}
+          />
+        </ScrollView>
+      </View>
+    </MintPetPrompt>
   );
 }
 

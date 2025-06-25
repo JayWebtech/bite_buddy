@@ -121,7 +121,6 @@ export default function ProfileScreen() {
         });
       }
     } catch (error) {
-      console.error('Authentication error:', error);
       setShowAlert({
         visible: true,
         title: 'Authentication Failed',
@@ -341,7 +340,7 @@ export default function ProfileScreen() {
                 style={styles.modalButton}
               />
               <GameButton
-                title="Authenticate"
+                title="Verify"
                 variant="primary"
                 onPress={authenticateAndShowPrivateKey}
                 disabled={pin.length < 4}
@@ -500,13 +499,13 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
   modalContent: {
-    backgroundColor: '#202020',
+    backgroundColor: Colors.background,
     padding: 20,
     borderRadius: 8,
-    width: '80%',
+    width: '90%',
   },
   modalTitle: {
     fontSize: 24,
@@ -521,7 +520,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   pinInput: {
-    backgroundColor: '#303030',
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.primary,
     padding: 12,
     borderRadius: 8,
     marginBottom: 20,
@@ -529,6 +530,7 @@ const styles = StyleSheet.create({
   },
   modalButtons: {
     flexDirection: 'row',
+    gap: 10,
     justifyContent: 'space-between',
   },
   modalButton: {

@@ -1,8 +1,9 @@
 pub mod BiteBuddy;
-pub mod base {
-    pub mod structs;
-    pub mod errors;
-}
 pub mod interface {
-    pub mod IBiteBuddyNFT;
+    pub mod IBiteBuddy;
+    pub mod IERC721;
+}
+pub mod base {
+    pub mod constants;
+    pub mod structs;
 }

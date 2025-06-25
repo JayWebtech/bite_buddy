@@ -260,7 +260,6 @@ const styles = StyleSheet.create({
     color: Colors.text,
     marginBottom: 8,
     textAlign: 'center',
-    textTransform: 'uppercase',
   },
   subtitle: {
     fontSize: 18,

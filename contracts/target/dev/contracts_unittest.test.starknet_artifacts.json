@@ -1,1 +1,1 @@
-{"version":1,"contracts":[{"id":"9fsj63of57nuu","package_name":"contracts","contract_name":"BiteBuddyNFT","module_path":"contracts::BiteBuddy::BiteBuddyNFT","artifacts":{"sierra":"contracts_unittest_BiteBuddyNFT.test.contract_class.json","casm":null}}]}
+{"version":1,"contracts":[{"id":"tqu34fb6lsst4","package_name":"contracts","contract_name":"BiteBuddy","module_path":"contracts::BiteBuddy::BiteBuddy","artifacts":{"sierra":"contracts_unittest_BiteBuddy.test.contract_class.json","casm":null}}]}

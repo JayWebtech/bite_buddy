@@ -5,7 +5,7 @@ import { walletManager } from '@/utils/wallet';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -81,8 +81,10 @@ const FloatingParticle: React.FC<{ delay: number }> = ({ delay }) => {
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const [seedPhrase] = useState<string[]>(walletManager.generateSeedPhrase());
+  const [seedPhrase, setSeedPhrase] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isRevealed, setIsRevealed] = useState(false);
+  const [isRevealing, setIsRevealing] = useState(false);
   const [hasBackedUp, setHasBackedUp] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
 
@@ -103,48 +105,68 @@ export default function OnboardingScreen() {
     }))
   ).current;
 
+  // Generate seed phrase asynchronously
   useEffect(() => {
-    // Initial entrance animations
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(titleOpacity, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(titleTranslateY, {
-          toValue: 0,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.parallel([
-        Animated.timing(subtitleOpacity, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(subtitleTranslateY, {
-          toValue: 0,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.parallel([
-        Animated.spring(seedContainerScale, {
-          toValue: 1,
-          tension: 50,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.timing(seedContainerOpacity, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
+    const generateSeed = async () => {
+      try {
+        // Add a small delay to ensure smooth loading experience
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const newSeedPhrase = walletManager.generateSeedPhrase();
+        setSeedPhrase(newSeedPhrase);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error generating seed phrase:', error);
+        setIsLoading(false);
+      }
+    };
+
+    generateSeed();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      // Initial entrance animations - only start after seed phrase is ready
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(titleOpacity, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(titleTranslateY, {
+            toValue: 0,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(subtitleOpacity, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(subtitleTranslateY, {
+            toValue: 0,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.spring(seedContainerScale, {
+            toValue: 1,
+            tension: 50,
+            friction: 8,
+            useNativeDriver: true,
+          }),
+          Animated.timing(seedContainerOpacity, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start();
+    }
+  }, [isLoading]);
 
   useEffect(() => {
     if (isRevealed) {
@@ -188,11 +210,15 @@ export default function OnboardingScreen() {
         ])
       );
 
-      Animated.stagger(50, animations).start();
+      Animated.stagger(50, animations).start(() => {
+        // Clear loading state after all animations complete
+        setIsRevealing(false);
+      });
     }
   }, [isRevealed]);
 
   const handleReveal = () => {
+    setIsRevealing(true);
     setIsRevealed(true);
   };
 
@@ -200,6 +226,21 @@ export default function OnboardingScreen() {
     setHasBackedUp(true);
     setShowAlert(true);
   };
+
+  // Show loading state while generating seed phrase
+  if (isLoading) {
+    return (
+      <View style={[styles.wrapper, styles.loadingContainer]}>
+        <Image
+          source={require('@/assets/images/bg_screen_2.png')}
+          style={styles.backgroundImage}
+          contentFit="cover"
+        />
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={styles.loadingText}>Generating secure seed phrase...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.wrapper}>
@@ -255,10 +296,11 @@ export default function OnboardingScreen() {
               <View style={styles.hiddenContainer}>
                 <Text style={styles.hiddenText}>Tap to reveal your seed phrase</Text>
                 <GameButton
-                  title="REVEAL"
+                  title={isRevealing ? "REVEALING..." : "REVEAL"}
                   onPress={handleReveal}
                   variant="primary"
-                  size="large"
+                  size="medium"
+                  disabled={isRevealing}
                 />
               </View>
             ) : (
@@ -401,7 +443,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 34,
     fontFamily: 'Blockblueprint',
-    textTransform: 'uppercase',
     color: '#FFFFFF',
     marginBottom: 12,
     textAlign: 'center',
@@ -560,5 +601,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: `${Colors.primary}20`,
     opacity: 0.5,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    fontFamily: 'Blockblueprint',
+    color: '#FFFFFF',
+    marginTop: 20,
   },
 }); 

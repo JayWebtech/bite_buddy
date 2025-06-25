@@ -1,3 +1,4 @@
+import { MintPetPrompt } from '@/components/ui/MintPetPrompt';
 import { Colors, getRarityColor } from '@/constants/Colors';
 import { walletManager } from '@/utils/wallet';
 import { Image } from 'expo-image';
@@ -390,69 +391,71 @@ export default function CollectionScreen() {
   };
 
   return (
-    <View style={styles.wrapper}>
-      <Image
-        source={require('@/assets/images/bg_screen_2.png')}
-        style={styles.backgroundImage}
-        contentFit="cover"
-      />
-      <View style={styles.darkOverlay} />
-      
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>My Collection</Text>
-          <Text style={styles.subtitle}>NFTs, achievements & more</Text>
-        </View>
+    <MintPetPrompt>
+      <View style={styles.wrapper}>
+        <Image
+          source={require('@/assets/images/bg_screen_2.png')}
+          style={styles.backgroundImage}
+          contentFit="cover"
+        />
+        <View style={styles.darkOverlay} />
+        
+        <View style={styles.container}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>My Collection</Text>
+            <Text style={styles.subtitle}>NFTs, achievements & more</Text>
+          </View>
 
-        {/* Tab Navigation */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'meals' && styles.activeTab]}
-            onPress={() => setActiveTab('meals')}
-          >
-            <Text style={[styles.tabText, activeTab === 'meals' && styles.activeTabText]}>
-              🍽️ Meals
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'achievements' && styles.activeTab]}
-            onPress={() => setActiveTab('achievements')}
-          >
-            <Text style={[styles.tabText, activeTab === 'achievements' && styles.activeTabText]}>
-              🏆 Achievements
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'pets' && styles.activeTab]}
-            onPress={() => setActiveTab('pets')}
-          >
-            <Text style={[styles.tabText, activeTab === 'pets' && styles.activeTabText]}>
-              🐾 Pets
-            </Text>
-          </TouchableOpacity>
-        </View>
+          {/* Tab Navigation */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'meals' && styles.activeTab]}
+              onPress={() => setActiveTab('meals')}
+            >
+              <Text style={[styles.tabText, activeTab === 'meals' && styles.activeTabText]}>
+                🍽️ Meals
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'achievements' && styles.activeTab]}
+              onPress={() => setActiveTab('achievements')}
+            >
+              <Text style={[styles.tabText, activeTab === 'achievements' && styles.activeTabText]}>
+                🏆 Achievements
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'pets' && styles.activeTab]}
+              onPress={() => setActiveTab('pets')}
+            >
+              <Text style={[styles.tabText, activeTab === 'pets' && styles.activeTabText]}>
+                🐾 Pets
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-        {/* Content */}
-        <ScrollView
-          style={styles.content}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={Colors.primary}
-            />
-          }
-        >
-          {activeTab === 'meals' && renderMealNFTs()}
-          {activeTab === 'achievements' && renderAchievements()}
-          {activeTab === 'pets' && renderPetCollection()}
-        </ScrollView>
+          {/* Content */}
+          <ScrollView
+            style={styles.content}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={Colors.primary}
+              />
+            }
+          >
+            {activeTab === 'meals' && renderMealNFTs()}
+            {activeTab === 'achievements' && renderAchievements()}
+            {activeTab === 'pets' && renderPetCollection()}
+          </ScrollView>
+        </View>
       </View>
-    </View>
+    </MintPetPrompt>
   );
 }
 

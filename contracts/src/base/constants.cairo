@@ -1,0 +1,11 @@
+pub const PERMISSION_BATTLE: u32 = 1;
+pub const PERMISSION_FEED_PET: u32 = 2;
+pub const PERMISSION_EVOLVE: u32 = 4;
+
+pub const SPECIES_VEGGIE_FLUFFY: u8 = 1;
+pub const SPECIES_PROTEIN_SPARKLE: u8 = 2;
+pub const SPECIES_BALANCE_THUNDER: u8 = 3;
+pub const SPECIES_BALANCE_MYSTIC: u8 = 4;
+
+// NFT constants
+pub const MEAL_NFT_OFFSET: u256 = 1000000000;

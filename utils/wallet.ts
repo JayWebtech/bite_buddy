@@ -13,10 +13,7 @@ import {
   ec,
   GetTransactionReceiptResponse,
   hash,
-  num,
-  RPC,
-  RpcProvider,
-  shortString
+  RpcProvider
 } from 'starknet';
 
 export interface WalletInfo {
@@ -112,14 +109,13 @@ export class BiteBuddyWallet {
     await SecureStore.setItemAsync("is_account_deployed", 'false');
     await SecureStore.setItemAsync("OZcontractAddress", OZcontractAddress);
     await SecureStore.setItemAsync("OZaccountConstructorCallData", OZaccountConstructorCallData);
+    await SecureStore.setItemAsync("is_minted", 'false');
   }
 
   // Setup wallet from seed phrase
   async setupWalletFromSeed(seedPhrase: string[], pin: string): Promise<WalletInfo> {
     const privateKey = await this.derivePrivateKeyFromSeed(seedPhrase);
-    console.log("private key generated", privateKey)
     const publicKey = this.generateWalletAddress(privateKey);
-    console.log("public key generated", publicKey)
 
 
     const OZaccountClassHash = Constants.expoConfig?.extra?.OZ_ACCOUNT_CLASS_HASH;
@@ -133,8 +129,6 @@ export class BiteBuddyWallet {
     const OZaccountConstructorCallData = CallData.compile({
       publicKey: publicKey,
     });
-
-    console.log("OZaccountConstructorCallData", OZaccountConstructorCallData)
 
     const OZcontractAddress = hash.calculateContractAddressFromHash(
       publicKey,
@@ -162,10 +156,6 @@ export class BiteBuddyWallet {
       const biometricAuthAvailable = await LocalAuthentication.hasHardwareAsync();
       const savedBiometrics = await LocalAuthentication.isEnrolledAsync();
         const supportedTypes = await LocalAuthentication.supportedAuthenticationTypesAsync();
-
-        console.log('Biometric auth available:', biometricAuthAvailable);
-        console.log('Saved biometrics:', savedBiometrics);
-        console.log('Supported types:', supportedTypes);
 
         if (biometricAuthAvailable && savedBiometrics) {
           // Determine the prompt message based on available biometric types
@@ -205,7 +195,7 @@ export class BiteBuddyWallet {
 
       return false;
     } catch (error) {
-      console.error('Authentication error:', error);
+      console.log('Authentication error:', error);
       return false;
     }
   }
@@ -222,7 +212,7 @@ export class BiteBuddyWallet {
 
       return {isDeployed, publicKey, OZcontractAddress, OZaccountConstructorCallData, petType};
     } catch (error) {
-      console.error('Error getting wallet info:', error);
+      console.log('Error getting wallet info:', error);
       return null;
     }
   }
@@ -262,8 +252,6 @@ export class BiteBuddyWallet {
     const account = await this.initializeAccount(pin);
     const walletInfo = await this.getWalletInfo()!;
 
-    console.log("OZ_ACCOUNT_CLASS_HASH", Constants.expoConfig?.extra?.OZ_ACCOUNT_CLASS_HASH!)
-
     try {
       const { transaction_hash } = await account.deployAccount({
         classHash: Constants.expoConfig?.extra?.OZ_ACCOUNT_CLASS_HASH!,
@@ -273,25 +261,11 @@ export class BiteBuddyWallet {
 
       const result = await this.provider.waitForTransaction(transaction_hash);
       await SecureStore.setItemAsync("is_account_deployed", 'true');
-      const mintResult = await this.mintPet();
-
-      if(mintResult) {
-        return {
-          result,
-          transaction_hash,
-        };
-      } else {
-        return {
-          result: {
-            statusReceipt: 'reverted',
-            value: {
-              error: 'Failed to mint pet. Please try again later.',
-            },
-          },
-          error: 'Failed to mint pet. Please try again later.',
-          errorType: 'MINT_PET_ERROR',
-        };
-      }
+    
+      return {
+        result,
+        transaction_hash,
+      };
     } catch (error) {
       console.log('Deploy account error:', error);
 
@@ -426,6 +400,17 @@ export class BiteBuddyWallet {
     return !!address;
   }
 
+  // Check if pet is minted
+  async isMinted(): Promise<boolean> {
+    try {
+      const isMinted = await SecureStore.getItemAsync("is_minted");
+      return isMinted === 'true';
+    } catch (error) {
+      console.log('Error checking mint status:', error);
+      return false;
+    }
+  }
+
   // Check biometric capabilities
   async getBiometricInfo(): Promise<{
     isAvailable: boolean;
@@ -452,7 +437,7 @@ export class BiteBuddyWallet {
         primaryType
       };
     } catch (error) {
-      console.error('Error checking biometric info:', error);
+      console.log('Error checking biometric info:', error);
       return {
         isAvailable: false,
         isEnrolled: false,
@@ -499,7 +484,8 @@ export class BiteBuddyWallet {
       console.log("Balance error",error)
     }
   }
-  async mintPet( pin?: string): Promise<{result: GetTransactionReceiptResponse, transaction_hash: string, message: string} | {result: any, error: string, errorType: string} | boolean> {
+  async mintPet(pin?: string): Promise<{result: GetTransactionReceiptResponse, transaction_hash: string, message: string} | {result: any, error: string, errorType: string} | boolean> {
+    
     try {
     const account = await this.initializeAccount(pin);
     const walletInfo = await this.getWalletInfo()!;
@@ -509,35 +495,21 @@ export class BiteBuddyWallet {
       {
         entrypoint: 'mint_pet',
         contractAddress: Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR,
-        calldata: [shortString.encodeShortString(petData?.type!), shortString.encodeShortString(petData?.name!)],
+        calldata: [petData?.id!],
       },
     ];
 
-    const maxQtyGasAuthorized = 1800n;
-      const maxPriceAuthorizeForOneGas = 20n * 10n ** 12n;
-      console.log('max authorized cost =', maxQtyGasAuthorized * maxPriceAuthorizeForOneGas, 'FRI');
       const { transaction_hash: txH } = await account.execute(calls, {
         version: 3,
-        //maxFee: 10 ** 15,
-        //feeDataAvailabilityMode: RPC.EDataAvailabilityMode.L1,
-        //tip: 10 ** 13,
         paymasterData: [],
-        // resourceBounds: {
-        //   l1_gas: {
-        //     max_amount: num.toHex(maxQtyGasAuthorized),
-        //     max_price_per_unit: num.toHex(maxPriceAuthorizeForOneGas),
-        //   },
-        //   l2_gas: {
-        //     max_amount: num.toHex(0),
-        //     max_price_per_unit: num.toHex(0),
-        //   },
-        // },
       });
       const txR = await this.provider.waitForTransaction(txH);
       if (txR.isSuccess()) {
         console.log("txR", txR)
+        // Set minted status to true after successful minting
+        await SecureStore.setItemAsync("is_minted", 'true');
         return true;
-      } else {
+      } else { 
         return false;
       }
     } catch (error) {
@@ -565,27 +537,31 @@ export class BiteBuddyWallet {
 
       const call = {
         contractAddress: Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR,
-        entrypoint: 'get_pet',
+        entrypoint: 'get_pets_by_owner',
         calldata: [walletInfo.OZcontractAddress],
       };
 
       const result = await this.provider.callContract(call);
-
-      console.log('Pet contract response:', result);
-
+      console.log("result", result)
       return result;
     } catch (error) {
-      console.error('Error fetching pet data:', error);
+      console.log('Error fetching pet data class:', error);
       throw error;
     }
   }
 
   // Feed pet with meal data from food analysis
   async feedPet(mealData: {
-    energy_value: number;
-    hunger_value: number; 
-    happiness_value: number;
-    timestamp: number;
+    pet_id: number,
+    meal_hash: string,
+    calories: number,
+    protein: number,
+    carbs: number,
+    fats: number,
+    vitamins: number,
+    minerals: number,
+    fiber: number,
+    ipfs_image_uri: string,
   }, pin?: string): Promise<boolean> {
     try {
       const account = await this.initializeAccount(pin);
@@ -597,112 +573,31 @@ export class BiteBuddyWallet {
 
       const calls: Call[] = [
         {
-          entrypoint: 'feed_pet',
+          entrypoint: 'scan_and_feed_meal',
           contractAddress: Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR,
           calldata: [
-            walletInfo.OZcontractAddress,
-            mealData.energy_value.toString(),
-            '0', // energy_value high part (Uint256)
-            mealData.hunger_value.toString(),
-            '0', // hunger_value high part (Uint256)
-            mealData.happiness_value.toString(),
-            '0', // happiness_value high part (Uint256)
-            mealData.timestamp.toString(),
+            mealData.pet_id,
+            mealData.meal_hash,
+            mealData.calories,
+            mealData.protein,
+            mealData.carbs,
+            mealData.fats,
+            mealData.vitamins,
+            mealData.minerals,
+            mealData.fiber,
+            mealData.ipfs_image_uri,
           ],
         },
       ];
 
-      const maxQtyGasAuthorized = 1800n;
-      const maxPriceAuthorizeForOneGas = 20n * 10n ** 12n;
-
       const { transaction_hash: txH } = await account.execute(calls, {
         version: 3,
-        // maxFee: 10 ** 15,
-        // feeDataAvailabilityMode: RPC.EDataAvailabilityMode.L1,
-        // tip: 10 ** 13,
-        // paymasterData: [],
-        // resourceBounds: {
-        //   l1_gas: {
-        //     max_amount: num.toHex(maxQtyGasAuthorized),
-        //     max_price_per_unit: num.toHex(maxPriceAuthorizeForOneGas),
-        //   },
-        //   l2_gas: {
-        //     max_amount: num.toHex(0),
-        //     max_price_per_unit: num.toHex(0),
-        //   },
-        // },
-      });
-
-      const txR = await this.provider.waitForTransaction(txH);
-      console.log('Feed pet transaction:', txR);
-      
-      return txR.isSuccess();
-    } catch (error) {
-      console.error('Error feeding pet:', error);
-      return false;
-    }
-  }
-
-  // Interact with pet (petting, playing) - batch multiple interactions
-  async interactWithPet(interactions: {
-    petting: number;
-    playing: number; 
-    feeding_interactions: number;
-  }, pin?: string): Promise<boolean> {
-    try {
-      const account = await this.initializeAccount(pin);
-      const walletInfo = await this.getWalletInfo();
-
-      if (!walletInfo?.OZcontractAddress) {
-        throw new Error('No wallet address found');
-      }
-
-      // For now, we'll simulate this as multiple feeding calls with small values
-      // You might want to add a specific interaction method to your contract
-      const calls: Call[] = [];
-
-      // Add interaction effects as small meal data
-      if (interactions.petting > 0) {
-        calls.push({
-          entrypoint: 'feed_pet',
-          contractAddress: Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR,
-          calldata: [
-            walletInfo.OZcontractAddress,
-            '0', '0', // energy_value (no energy from petting)
-            '0', '0', // hunger_value (no hunger relief from petting)
-            interactions.petting.toString(), '0', // happiness_value
-            Math.floor(Date.now() / 1000).toString(),
-          ],
-        });
-      }
-
-      if (calls.length === 0) return true; // No interactions to process
-
-      const maxQtyGasAuthorized = 2000n;
-      const maxPriceAuthorizeForOneGas = 20n * 10n ** 12n;
-
-      const { transaction_hash: txH } = await account.execute(calls, {
-        version: 3,
-        maxFee: 10 ** 15,
-        feeDataAvailabilityMode: RPC.EDataAvailabilityMode.L1,
-        tip: 10 ** 13,
-        paymasterData: [],
-        resourceBounds: {
-          l1_gas: {
-            max_amount: num.toHex(maxQtyGasAuthorized),
-            max_price_per_unit: num.toHex(maxPriceAuthorizeForOneGas),
-          },
-          l2_gas: {
-            max_amount: num.toHex(0),
-            max_price_per_unit: num.toHex(0),
-          },
-        },
       });
 
       const txR = await this.provider.waitForTransaction(txH);
       return txR.isSuccess();
     } catch (error) {
-      console.error('Error with pet interaction:', error);
+      console.log('Error feeding pet:', error);
       return false;
     }
   }
@@ -717,7 +612,8 @@ export class BiteBuddyWallet {
         'is_account_deployed',
         'OZcontractAddress',
         'OZaccountConstructorCallData',
-        'petType'
+        'petType',
+        'is_minted'
       ];
 
       for (const key of keys) {
@@ -727,7 +623,7 @@ export class BiteBuddyWallet {
       
       console.log('All SecureStore data cleared successfully');
     } catch (error) {
-      console.error('Error clearing data:', error);
+      console.log('Error clearing data:', error);
     }
   }
 }

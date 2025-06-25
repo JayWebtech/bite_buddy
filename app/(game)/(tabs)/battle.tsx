@@ -1,3 +1,4 @@
+import { MintPetPrompt } from '@/components/ui/MintPetPrompt';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -275,49 +276,51 @@ export default function BattleScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Battle Arena</Text>
-        <Text style={styles.subtitle}>Challenge opponents to earn coins and XP</Text>
-      </View>
+    <MintPetPrompt>
+      <ScrollView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Battle Arena</Text>
+          <Text style={styles.subtitle}>Challenge opponents to earn coins and XP</Text>
+        </View>
 
-      <View style={styles.opponentsSection}>
-        <Text style={styles.sectionTitle}>Choose Your Opponent</Text>
-        {opponents.map((opponent) => (
-          <TouchableOpacity
-            key={opponent.id}
-            style={styles.opponentCard}
-            onPress={() => startBattle(opponent)}
-          >
-            <Image
-              source={opponent.image}
-              style={styles.opponentCardImage}
-              contentFit="contain"
-            />
-            <View style={styles.opponentInfo}>
-              <Text style={styles.opponentName}>{opponent.name}</Text>
-              <Text style={styles.opponentLevel}>Level {opponent.level}</Text>
-              <View style={styles.opponentStats}>
-                <Text style={styles.statText}>❤️ {opponent.stats.health}</Text>
-                <Text style={styles.statText}>⚔️ {opponent.stats.attack}</Text>
-                <Text style={styles.statText}>🛡️ {opponent.stats.defense}</Text>
+        <View style={styles.opponentsSection}>
+          <Text style={styles.sectionTitle}>Choose Your Opponent</Text>
+          {opponents.map((opponent) => (
+            <TouchableOpacity
+              key={opponent.id}
+              style={styles.opponentCard}
+              onPress={() => startBattle(opponent)}
+            >
+              <Image
+                source={opponent.image}
+                style={styles.opponentCardImage}
+                contentFit="contain"
+              />
+              <View style={styles.opponentInfo}>
+                <Text style={styles.opponentName}>{opponent.name}</Text>
+                <Text style={styles.opponentLevel}>Level {opponent.level}</Text>
+                <View style={styles.opponentStats}>
+                  <Text style={styles.statText}>❤️ {opponent.stats.health}</Text>
+                  <Text style={styles.statText}>⚔️ {opponent.stats.attack}</Text>
+                  <Text style={styles.statText}>🛡️ {opponent.stats.defense}</Text>
+                </View>
               </View>
-            </View>
-            <View style={styles.rewardContainer}>
-              <Text style={styles.rewardText}>💰 {opponent.reward}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
+              <View style={styles.rewardContainer}>
+                <Text style={styles.rewardText}>💰 {opponent.reward}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-      <View style={styles.tipsSection}>
-        <Text style={styles.tipsTitle}>Battle Tips</Text>
-        <Text style={styles.tipText}>• Use attack cards to deal damage</Text>
-        <Text style={styles.tipText}>• Defense cards reduce incoming damage</Text>
-        <Text style={styles.tipText}>• Special cards provide healing and energy</Text>
-        <Text style={styles.tipText}>• Energy regenerates each turn</Text>
-      </View>
-    </ScrollView>
+        <View style={styles.tipsSection}>
+          <Text style={styles.tipsTitle}>Battle Tips</Text>
+          <Text style={styles.tipText}>• Use attack cards to deal damage</Text>
+          <Text style={styles.tipText}>• Defense cards reduce incoming damage</Text>
+          <Text style={styles.tipText}>• Special cards provide healing and energy</Text>
+          <Text style={styles.tipText}>• Energy regenerates each turn</Text>
+        </View>
+      </ScrollView>
+    </MintPetPrompt>
   );
 }
 
