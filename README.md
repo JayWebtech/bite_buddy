@@ -1,50 +1,155 @@
-# Welcome to your Expo app 👋
+# 🎮 Bite Buddy - NFT Pet Game
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A React Native Expo app with Starknet integration where users scan meals to feed digital NFT pets. Pets evolve based on nutrition quality, and users can battle other pets in a card-style format.
 
-## Get started
+## 🌟 Core Features
 
-1. Install dependencies
+- **📱 Meal Scanning**: Snap photos of meals for AI-powered nutrition analysis
+- **🐕 NFT Pets**: Mint and care for digital pets stored on Starknet
+- **⚔️ Pet Battles**: Card-style combat system where food = energy
+- **🔐 Secure Wallet**: Hardware-encrypted storage with biometric authentication
+- **🥗 Nutrition Analysis**: MCP server integration for intelligent food scoring
+- **🎯 Gamification**: XP, levels, achievements, and pet evolution
 
+## 🚀 Technology Stack
+
+### Frontend
+- **React Native** with Expo Router
+- **TypeScript** for type safety
+- **Expo Secure Store** for encrypted key management
+- **Lottie React Native** for animations
+- **Starknet.js** for blockchain integration
+
+### Backend
+- **Node.js** with Express
+- **Supabase** for database management
+- **Socket.io** for real-time battles
+- **Sharp** for image processing
+- **Multer** for file uploads
+
+### Blockchain
+- **Starknet** for NFT contracts and state management
+- **Cairo** smart contracts for pet minting and feeding
+- **ZK-proofs** for meal verification
+
+## 📱 App Flow
+
+```
+Splash → Onboarding (Seed Phrase) → PIN Setup → Pet Selection → Wallet Setup → Game
+```
+
+### Authentication Flow
+1. **Seed Phrase Generation**: 12-word mnemonic using ethers.js
+2. **PIN Security**: 6-digit PIN with biometric fallback
+3. **Wallet Creation**: Starknet account derivation from seed
+4. **Secure Storage**: Hardware-encrypted storage of credentials
+
+### Game Flow
+1. **Pet Minting**: Create NFT pets on Starknet
+2. **Meal Scanning**: Camera integration with MCP analysis
+3. **Pet Feeding**: Update on-chain stats based on nutrition
+4. **Battle System**: Match players for card-style combat
+
+## 🔧 Setup Instructions
+
+### Prerequisites
+- Node.js 18+
+- Expo CLI
+- iOS Simulator or Android Emulator
+- Supabase account
+- Starknet testnet setup
+
+### Installation
+
+1. **Install dependencies**
    ```bash
    npm install
+   cd backend && npm install
    ```
 
-2. Start the app
-
+2. **Environment Setup**
    ```bash
+   # Backend environment
+   cp backend/.env.example backend/.env
+   # Fill in your Supabase credentials and API keys
+   ```
+
+3. **Start the development servers**
+   ```bash
+   # Terminal 1: Backend
+   cd backend && npm run dev
+   
+   # Terminal 2: Frontend
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+## 🏗️ Project Structure
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+bite_buddy/
+├── app/                    # Expo Router pages
+│   ├── (auth)/            # Authentication screens
+│   │   ├── splash.tsx
+│   │   ├── onboarding.tsx
+│   │   ├── pin.tsx
+│   │   ├── pet-selection.tsx
+│   │   └── wallet-setup.tsx
+│   └── (game)/            # Game screens
+│       └── (tabs)/        # Bottom navigation
+├── backend/               # Node.js backend
+├── contracts/             # Cairo smart contracts
+├── components/            # React components
+├── utils/                 # Utility functions
+└── constants/            # App constants
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 🔐 Security Features
 
-## Learn more
+### Wallet Security
+- **Hardware Encryption**: Expo Secure Store with device keychain
+- **Biometric Authentication**: Face ID/Touch ID integration
+- **PIN Protection**: 6-digit PIN with retry limits
+- **Secure Key Derivation**: PBKDF2 with device-specific salt
 
-To learn more about developing your project with Expo, look at the following resources:
+## 🎮 Game Mechanics
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Pet Stats System
+- **Energy**: Determines battle power and activity level
+- **Hunger**: Affects pet mood and performance
+- **Happiness**: Influences XP gain and evolution
+- **Level**: Unlocks new abilities and increases battle power
 
-## Join the community
+### Nutrition Analysis
+The MCP server analyzes meal images and returns:
+- **Energy Value** (0-100): How energizing the food is
+- **Hunger Value** (0-100): How filling the meal is
+- **Happiness Value** (0-100): How much the pet enjoys it
 
-Join our community of developers creating universal apps.
+## 🧪 Testing
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### Frontend Testing
+```bash
+npx expo start
+```
+
+### Backend Testing
+```bash
+cd backend && npm run dev
+```
+
+### Contract Testing
+```bash
+cd contracts && scarb test
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit changes
+4. Push to branch
+5. Submit a pull request
+
+---
+
+**Built with ❤️ for the Starknet ecosystem**

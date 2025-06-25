@@ -1,7 +1,10 @@
+import GameButton from '@/components/ui/GameButton';
 import { Colors, getRarityColor } from '@/constants/Colors';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import * as SecureStore from 'expo-secure-store';
+import LottieView from 'lottie-react-native';
+import React, { useRef, useState } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface Pet {
@@ -9,7 +12,7 @@ interface Pet {
   name: string;
   type: string;
   rarity: 'Common' | 'Rare' | 'Epic' | 'Legendary';
-  image: any;
+  lottieFile: any; // Main Lottie animation file
   stats: {
     hunger: number;
     happiness: number;
@@ -23,114 +26,106 @@ const pets: Pet[] = [
     name: 'Fluffy',
     type: 'Dragon Pup',
     rarity: 'Common',
-    image: require('@/assets/images/pet-1.png'),
-    stats: { hunger: 100, happiness: 80, energy: 90 }
+    lottieFile: require('@/assets/animations/lottie-1.json'),
+    stats: { hunger: 75, happiness: 80, energy: 90 }
   },
   {
     id: 2,
     name: 'Sparkle',
     type: 'Crystal Fox',
     rarity: 'Rare',
-    image: require('@/assets/images/pet-2.png'),
-    stats: { hunger: 90, happiness: 95, energy: 85 }
+    lottieFile: require('@/assets/animations/lottie-2.json'),
+    stats: { hunger: 85, happiness: 85, energy: 80 }
   },
   {
     id: 3,
     name: 'Thunder',
     type: 'Storm Wolf',
     rarity: 'Epic',
-    image: require('@/assets/images/pet-3.png'),
-    stats: { hunger: 85, happiness: 75, energy: 100 }
+    lottieFile: require('@/assets/animations/lottie-3.json'),
+    stats: { hunger: 90, happiness: 75, energy: 95 }
   },
   {
     id: 4,
     name: 'Mystic',
     type: 'Shadow Cat',
     rarity: 'Legendary',
-    image: require('@/assets/images/pet-4.png'),
-    stats: { hunger: 95, happiness: 90, energy: 95 }
-  },
-  {
-    id: 5,
-    name: 'Bubbles',
-    type: 'Water Spirit',
-    rarity: 'Rare',
-    image: require('@/assets/images/pet-5.png'),
-    stats: { hunger: 88, happiness: 92, energy: 87 }
-  },
-  {
-    id: 6,
-    name: 'Flame',
-    type: 'Fire Phoenix',
-    rarity: 'Epic',
-    image: require('@/assets/images/pet-6.png'),
-    stats: { hunger: 82, happiness: 85, energy: 98 }
+    lottieFile: require('@/assets/animations/lottie-4.json'),
+    stats: { hunger: 95, happiness: 100, energy: 95 }
   }
 ];
 
-const AnimatedPet: React.FC<{ 
+const InteractivePet: React.FC<{ 
   pet: Pet; 
   isSelected: boolean; 
   onSelect: () => void;
 }> = ({ pet, isSelected, onSelect }) => {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const bounceAnim = useRef(new Animated.Value(0)).current;
+  const lottieRef = useRef<LottieView>(null);
+  const cardScaleAnim = useRef(new Animated.Value(1)).current;
+  const [isInteracting, setIsInteracting] = useState(false);
 
-  useEffect(() => {
-    // Continuous bounce animation to simulate breathing/life
-    const bounceAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(bounceAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(bounceAnim, {
-          toValue: 0,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    );
+  // Handle pet interaction
+  const handlePetTap = () => {
+    setIsInteracting(true);
     
-    bounceAnimation.start();
-    
-    return () => bounceAnimation.stop();
-  }, []);
-
-  const handlePress = () => {
+    // Card press animation
     Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.9,
+      Animated.timing(cardScaleAnim, {
+        toValue: 0.95,
         duration: 100,
         useNativeDriver: true,
       }),
-      Animated.timing(scaleAnim, {
+      Animated.timing(cardScaleAnim, {
         toValue: 1,
         duration: 100,
         useNativeDriver: true,
       }),
     ]).start();
-    
+
+    // Trigger tap animation
+    if (lottieRef.current) {
+      lottieRef.current.reset();
+      lottieRef.current.play();
+    }
+
+    // Reset interaction state
+    setTimeout(() => {
+      setIsInteracting(false);
+    }, 2000);
+
     onSelect();
   };
 
+  const handlePetPress = () => {
+    // Different interaction - like petting
+    if (lottieRef.current) {
+      lottieRef.current.reset();
+      lottieRef.current.play(0, 50); // Play specific frames for petting animation
+    }
+  };
 
+  const handlePetLongPress = () => {
+    // Another interaction - like feeding
+    if (lottieRef.current) {
+      lottieRef.current.reset();
+      lottieRef.current.play();
+    }
+  };
 
   return (
-    <TouchableOpacity onPress={handlePress}>
+    <TouchableOpacity 
+      onPress={handlePetTap}
+      onLongPress={handlePetLongPress}
+      delayLongPress={500}
+      activeOpacity={0.9}
+    >
       <Animated.View 
         style={[
           styles.petCard,
           isSelected && styles.petCardSelected,
           {
-            transform: [
-              { scale: scaleAnim },
-              { translateY: bounceAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, -5]
-              })}
-            ]
+            transform: [{ scale: cardScaleAnim }],
+            borderColor: isSelected ? Colors.primary : 'transparent',
           }
         ]}
       >
@@ -138,29 +133,35 @@ const AnimatedPet: React.FC<{
           <Text style={styles.rarityText}>{pet.rarity}</Text>
         </View>
         
-        <Image
-          source={pet.image}
-          style={styles.petImage}
-          contentFit="contain"
-        />
+        {/* Interactive Lottie Pet */}
+        <View style={styles.petContainer}>
+          <LottieView
+            ref={lottieRef}
+            source={pet.lottieFile}
+            style={styles.petLottie}
+            autoPlay
+            loop={!isInteracting} // Stop looping during interactions
+            speed={1}
+          />
+          
+          {/* Touch zones for different interactions */}
+          <TouchableOpacity 
+            style={styles.headTouchZone}
+            onPress={handlePetPress}
+            activeOpacity={0.7}
+          />
+          
+          {/* Interaction feedback */}
+          {isInteracting && (
+            <View style={styles.interactionFeedback}>
+              <Text style={styles.interactionText}>👋</Text>
+            </View>
+          )}
+        </View>
         
         <Text style={styles.petName}>{pet.name}</Text>
         <Text style={styles.petType}>{pet.type}</Text>
         
-        <View style={styles.statsContainer}>
-          <View style={styles.stat}>
-            <Text style={styles.statLabel}>❤️</Text>
-            <Text style={styles.statValue}>{pet.stats.happiness}</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statLabel}>🍽️</Text>
-            <Text style={styles.statValue}>{pet.stats.hunger}</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statLabel}>⚡</Text>
-            <Text style={styles.statValue}>{pet.stats.energy}</Text>
-          </View>
-        </View>
       </Animated.View>
     </TouchableOpacity>
   );
@@ -170,96 +171,101 @@ export default function PetSelectionScreen() {
   const router = useRouter();
   const [selectedPet, setSelectedPet] = useState<Pet | null>(null);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (selectedPet) {
-      // Store selected pet and navigate to game
-      router.push('/(game)/(tabs)/home');
+      await SecureStore.setItemAsync("pet_type", JSON.stringify(selectedPet));
+      router.push('/(auth)/wallet-setup');
     }
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Choose Your Buddy</Text>
-        <Text style={styles.subtitle}>
-          Select your first NFT pet to start your journey
-        </Text>
-      </View>
+    <View style={styles.wrapper}>
+      <Image
+        source={require('@/assets/images/bg_screen_2.png')}
+        style={styles.backgroundImage}
+        contentFit="cover"
+      />
+      
+      {/* Dark overlay */}
+      <View style={styles.darkOverlay} />
+      
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Choose Your Buddy</Text>
+          <Text style={styles.subtitle}>
+            Select your NFT pet companion
+          </Text>
+        </View>
 
-      <ScrollView style={styles.petsContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.petsGrid}>
-          {pets.map((pet) => (
-            <AnimatedPet
-              key={pet.id}
-              pet={pet}
-              isSelected={selectedPet?.id === pet.id}
-              onSelect={() => setSelectedPet(pet)}
+        <ScrollView style={styles.petsContainer} showsVerticalScrollIndicator={false}>
+          <View style={styles.petsGrid}>
+            {pets.map((pet) => (
+              <InteractivePet
+                key={pet.id}
+                pet={pet}
+                isSelected={selectedPet?.id === pet.id}
+                onSelect={() => setSelectedPet(pet)}
+              />
+            ))}
+          </View>
+        </ScrollView>
+
+        {selectedPet && (
+          <View style={styles.footer}>
+            <GameButton
+              title={`Continue with ${selectedPet.name}`}
+              onPress={handleContinue}
+              variant='primary'
             />
-          ))}
-        </View>
-      </ScrollView>
-
-      {selectedPet && (
-        <View style={styles.selectedInfo}>
-          <Text style={styles.selectedText}>
-            You selected <Text style={styles.selectedName}>{selectedPet.name}</Text>
-          </Text>
-          <Text style={styles.selectedDescription}>
-            A {selectedPet.rarity} {selectedPet.type} ready for adventure!
-          </Text>
-        </View>
-      )}
-
-      <View style={styles.actions}>
-        <TouchableOpacity 
-          style={styles.backButton} 
-          onPress={() => router.back()}
-        >
-          <Text style={styles.backButtonText}>← Back</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[
-            styles.continueButton,
-            !selectedPet && styles.continueButtonDisabled
-          ]}
-          onPress={handleContinue}
-          disabled={!selectedPet}
-        >
-          <Text style={[
-            styles.continueButtonText,
-            !selectedPet && styles.continueButtonTextDisabled
-          ]}>
-            Start Adventure
-          </Text>
-        </TouchableOpacity>
+          </View>
+        )}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+  },
+  backgroundImage: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    top: 0,
+    left: 0,
+    zIndex: -1,
+  },
+  darkOverlay: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    top: 0,
+    left: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
-    padding: 24,
+    backgroundColor: 'transparent',
+    padding: 16,
+    paddingTop: 80,
   },
   header: {
     alignItems: 'center',
-    marginTop: 40,
     marginBottom: 30,
   },
   title: {
-    fontSize: 28,
-    fontFamily: 'ClashDisplay-Bold',
+    fontSize: 36,
+    fontFamily: 'Blockblueprint',
     color: Colors.text,
     marginBottom: 8,
     textAlign: 'center',
+    textTransform: 'uppercase',
   },
   subtitle: {
-    fontSize: 16,
-    fontFamily: 'ClashDisplay-Regular',
-    color: Colors.textSecondary,
+    fontSize: 18,
+    fontFamily: 'Blockblueprint',
+    color: '#FFFFFF',
     textAlign: 'center',
     lineHeight: 24,
   },
@@ -270,20 +276,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    paddingBottom: 20,
+    gap: 12,
   },
   petCard: {
-    width: '48%',
-    backgroundColor: Colors.cardBackground,
+    flex: 1,
+    minWidth: '48%',
+    maxWidth: '100%',
+    backgroundColor: Colors.primaryDark,
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    padding: 12,
+    marginBottom: 12,
     alignItems: 'center',
     borderWidth: 2,
     borderColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    position: 'relative',
   },
   petCardSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.darkCard,
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.3,
+    elevation: 8,
   },
   rarityBadge: {
     position: 'absolute',
@@ -291,97 +308,110 @@ const styles = StyleSheet.create({
     right: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 12,
+    zIndex: 1,
   },
   rarityText: {
     fontSize: 10,
-    fontFamily: 'ClashDisplay-Medium',
+    fontFamily: 'Blockblueprint',
     color: '#FFFFFF',
+    textTransform: 'uppercase',
   },
-  petImage: {
-    width: 80,
-    height: 80,
-    marginBottom: 12,
+  petContainer: {
+    position: 'relative',
+    width: '100%',
+    height: 100,
+    marginBottom: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  petLottie: {
+    width: '100%',
+    height: 100,
+  },
+  headTouchZone: {
+    position: 'absolute',
+    top: 0,
+    left: '25%',
+    width: '50%',
+    height: '50%',
+    backgroundColor: 'transparent',
+  },
+  interactionFeedback: {
+    position: 'absolute',
+    top: -10,
+    right: -10,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 15,
+    width: 30,
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  interactionText: {
+    fontSize: 16,
   },
   petName: {
     fontSize: 16,
-    fontFamily: 'ClashDisplay-Bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
+    fontFamily: 'Blockblueprint',
+    color: Colors.text,
+    marginBottom: 2,
+    textAlign: 'center',
   },
   petType: {
-    fontSize: 12,
-    fontFamily: 'ClashDisplay-Regular',
-    color: '#B0B0B0',
-    marginBottom: 12,
+    fontSize: 10,
+    fontFamily: 'Blockblueprint',
+    color: Colors.textSecondary,
+    marginBottom: 6,
+    textAlign: 'center',
   },
   statsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
     width: '100%',
+    marginBottom: 6,
+    paddingHorizontal: 4,
   },
   stat: {
     alignItems: 'center',
+    padding: 2,
+    flex: 1,
   },
   statLabel: {
-    fontSize: 14,
-    marginBottom: 2,
+    fontSize: 11,
+    marginBottom: 1,
   },
   statValue: {
-    fontSize: 12,
-    fontFamily: 'ClashDisplay-Medium',
-    color: '#FFFFFF',
+    fontSize: 10,
+    fontFamily: 'Blockblueprint',
+    color: Colors.text,
+    fontWeight: 'bold',
   },
-  selectedInfo: {
-    backgroundColor: '#16213e',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
-    alignItems: 'center',
+  interactionHint: {
+    fontSize: 7,
+    fontFamily: 'Blockblueprint',
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    opacity: 0.7,
+    lineHeight: 10,
   },
-  selectedText: {
-    fontSize: 16,
-    fontFamily: 'ClashDisplay-Regular',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  selectedName: {
-    fontFamily: 'ClashDisplay-Bold',
-    color: '#667eea',
-  },
-  selectedDescription: {
-    fontSize: 14,
-    fontFamily: 'ClashDisplay-Regular',
-    color: '#B0B0B0',
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  backButton: {
-    padding: 12,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontFamily: 'ClashDisplay-Medium',
-    color: '#667eea',
+  footer: {
+    paddingVertical: 20,
   },
   continueButton: {
-    backgroundColor: '#667eea',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
+    backgroundColor: Colors.primary,
     borderRadius: 12,
-  },
-  continueButtonDisabled: {
-    backgroundColor: '#2c3e50',
+    paddingVertical: 16,
+    alignItems: 'center',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   continueButtonText: {
-    fontSize: 16,
-    fontFamily: 'ClashDisplay-Medium',
+    fontSize: 18,
+    fontFamily: 'Blockblueprint',
     color: '#FFFFFF',
-  },
-  continueButtonTextDisabled: {
-    color: '#7f8c8d',
   },
 }); 

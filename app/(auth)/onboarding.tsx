@@ -1,6 +1,7 @@
 import GameAlert from '@/components/ui/GameAlert';
 import GameButton from '@/components/ui/GameButton';
 import { Colors } from '@/constants/Colors';
+import { walletManager } from '@/utils/wallet';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -8,23 +9,6 @@ import { Animated, Dimensions, ScrollView, StyleSheet, Text, View } from 'react-
 
 const { width, height } = Dimensions.get('window');
 
-// Mock seed phrase generation (in real app, use proper crypto library)
-const generateSeedPhrase = (): string[] => {
-  const words = [
-    'abandon', 'ability', 'able', 'about', 'above', 'absent', 'absorb', 'abstract',
-    'absurd', 'abuse', 'access', 'accident', 'account', 'accuse', 'achieve', 'acid',
-    'acoustic', 'acquire', 'across', 'act', 'action', 'actor', 'actress', 'actual',
-    'adapt', 'add', 'addict', 'address', 'adjust', 'admit', 'adult', 'advance',
-    'advice', 'aerobic', 'affair', 'afford', 'afraid', 'again', 'against', 'age',
-    'agent', 'agree', 'ahead', 'aim', 'air', 'airport', 'aisle', 'alarm'
-  ];
-  
-  const seedPhrase = [];
-  for (let i = 0; i < 12; i++) {
-    seedPhrase.push(words[Math.floor(Math.random() * words.length)]);
-  }
-  return seedPhrase;
-};
 
 // Floating particle component
 const FloatingParticle: React.FC<{ delay: number }> = ({ delay }) => {
@@ -97,7 +81,7 @@ const FloatingParticle: React.FC<{ delay: number }> = ({ delay }) => {
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const [seedPhrase] = useState<string[]>(generateSeedPhrase());
+  const [seedPhrase] = useState<string[]>(walletManager.generateSeedPhrase());
   const [isRevealed, setIsRevealed] = useState(false);
   const [hasBackedUp, setHasBackedUp] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
@@ -343,7 +327,10 @@ export default function OnboardingScreen() {
           {hasBackedUp && (
             <GameButton
               title="Continue to Setup PIN"
-              onPress={() => router.push('/(auth)/pin')}
+              onPress={() => router.push({
+                pathname: '/(auth)/pin',
+                params: { seedphrase: JSON.stringify(seedPhrase) }
+              })}
               variant="primary"
               size="large"
             />
@@ -360,7 +347,10 @@ export default function OnboardingScreen() {
         buttons={[
           {
             text: "Continue",
-            onPress: () => router.push('/(auth)/pin'),
+            onPress:() => router.push({
+              pathname: '/(auth)/pin',
+              params: { seedphrase: JSON.stringify(seedPhrase) }
+            }),
             variant: "primary"
           }
         ]}
@@ -409,7 +399,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   title: {
-    fontSize: 60,
+    fontSize: 34,
     fontFamily: 'Blockblueprint',
     textTransform: 'uppercase',
     color: '#FFFFFF',
@@ -463,7 +453,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   seedContentCard: {
-    backgroundColor: '#232323',
+    backgroundColor: Colors.primaryDark,
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 16,
     borderWidth: 0,
@@ -512,14 +502,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   seedNumber: {
-    fontSize: 11,
-    fontFamily: 'KnightWarrior',
+    fontSize: 18,
+    fontFamily: 'Blockblueprint',
     color: '#FFFFFF',
     fontWeight: 'bold',
   },
   seedWord: {
-    fontSize: 14,
-    fontFamily: 'ClashDisplay-Medium',
+    fontSize: 18,
+    fontFamily: 'Blockblueprint',
     color: '#FFFFFF',
     flex: 1,
     textShadowColor: '#000',

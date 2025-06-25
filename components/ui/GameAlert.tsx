@@ -130,10 +130,7 @@ export default function GameAlert({
           </View>
 
           {/* Main alert card */}
-          <LinearGradient
-            colors={['#2a3441', '#1a202c', '#0f1419']}
-            style={styles.alertCard}
-          >
+          <View style={styles.alertCard}>
             {/* Header with icon */}
             <View style={styles.header}>
               <View style={styles.iconContainer}>
@@ -163,7 +160,7 @@ export default function GameAlert({
                 />
               ))}
             </View>
-          </LinearGradient>
+          </View>
         </Animated.View>
       </Animated.View>
     </Modal>
@@ -206,6 +203,7 @@ const styles = StyleSheet.create({
     padding: 24,
     borderWidth: 3,
     borderColor: Colors.primary,
+    backgroundColor: Colors.primaryDark,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.6,
