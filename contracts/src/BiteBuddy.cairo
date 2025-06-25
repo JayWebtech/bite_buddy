@@ -1,5 +1,5 @@
 #[starknet::contract]
-pub mod BiteBuddyV1 {
+pub mod BiteBuddyV2 {
     use openzeppelin::access::ownable::OwnableComponent;
     use openzeppelin::introspection::src5::SRC5Component;
     use openzeppelin::token::erc721::{ERC721Component, ERC721HooksEmptyImpl};

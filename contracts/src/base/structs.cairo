@@ -1,6 +1,6 @@
 use starknet::{ContractAddress};
 
-#[derive(Copy, Drop, Serde, starknet::Store)]
+#[derive(Copy, Drop, Serde, starknet::Store, Debug)]
 pub struct Pet {
     pub pet_id: u256,
     pub owner: ContractAddress,

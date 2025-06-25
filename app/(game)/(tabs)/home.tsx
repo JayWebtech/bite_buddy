@@ -9,14 +9,13 @@ import { useRouter } from 'expo-router';
 import LottieView from 'lottie-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { shortString } from 'starknet';
 
 interface PetStats {
-  hunger: number;
-  happiness: number;
+  health: number;
   energy: number;
+  nutrition_score: number;
   level: number;
-  xp: number;
+  experience: number;
 }
 
 interface ContractPet {
@@ -52,29 +51,30 @@ const foodItems: FoodItem[] = [
   { id: 6, name: 'Fish', emoji: '🐟', nutritionScore: 90, energyGain: 30, cost: 40 },
 ];
 
-// Pet data mapping based on pet-selection.tsx
-const petAnimationMap: { [key: string]: any } = {
-  'Fluffy': require('@/assets/animations/lottie-1.json'),
-  'Sparkle': require('@/assets/animations/lottie-2.json'), 
-  'Thunder': require('@/assets/animations/lottie-3.json'),
-  'Mystic': require('@/assets/animations/lottie-4.json'),
+// Pet data mapping based on species from contract
+const petAnimationMap: { [key: number]: any } = {
+  1: require('@/assets/animations/lottie-1.json'), // SPECIES_VEGGIE_FLUFFY
+  2: require('@/assets/animations/lottie-2.json'), // SPECIES_PROTEIN_SPARKLE
+  3: require('@/assets/animations/lottie-3.json'), // SPECIES_BALANCE_THUNDER
+  4: require('@/assets/animations/lottie-4.json'), // SPECIES_BALANCE_MYSTIC
 };
 
-const petTypeMap: { [key: string]: string } = {
-  'Fluffy': 'Dragon Pup',
-  'Sparkle': 'Crystal Fox',
-  'Thunder': 'Storm Wolf', 
-  'Mystic': 'Shadow Cat',
+const petTypeMap: { [key: number]: string } = {
+  1: 'Veggie Dragon Pup',
+  2: 'Protein Crystal Fox',
+  3: 'Balance Storm Wolf', 
+  4: 'Balance Shadow Cat',
 };
 
 const InteractivePet: React.FC<{
   stats: PetStats;
-  onFeed: (happiness: number) => void;
+  onFeed: (energyGain: number) => void;
   onPet: () => void;
   onPlay: () => void;
   petName: string;
   petType?: string;
-}> = ({ stats, onFeed, onPet, onPlay, petName, petType }) => {
+  petSpecies: number;
+}> = ({ stats, onFeed, onPet, onPlay, petName, petType, petSpecies }) => {
   const lottieRef = useRef<LottieView>(null);
   const [isInteracting, setIsInteracting] = useState(false);
   const [interactionFeedback, setInteractionFeedback] = useState<{ type: string; x: number; y: number; visible: boolean }>({
@@ -233,7 +233,7 @@ const InteractivePet: React.FC<{
       >
         <LottieView
           ref={lottieRef}
-          source={petAnimationMap[petName] || require('@/assets/animations/lottie-1.json')} // Dynamic pet animation
+                      source={petAnimationMap[petSpecies] || require('@/assets/animations/lottie-1.json')} // Dynamic pet animation
           style={styles.petLottie}
           autoPlay
           loop={!isInteracting}
@@ -294,7 +294,6 @@ const InteractivePet: React.FC<{
       {/* Pet info */}
       <View style={styles.petInfo}>
         <Text style={styles.petName}>{petName}</Text>
-        <Text style={styles.petType}>{petType || petTypeMap[petName] || 'Interactive Pet'}</Text>
         <Text style={styles.interactionHint}>
           Tap different areas to interact!
         </Text>
@@ -306,16 +305,17 @@ const InteractivePet: React.FC<{
 export default function HomeScreen() {
   const router = useRouter();
   const [petStats, setPetStats] = useState<PetStats>({
-    hunger: 75,
-    happiness: 80,
-    energy: 60,
+    health: 100,
+    energy: 50,
+    nutrition_score: 0,
     level: 1,
-    xp: 150
+    experience: 0
   });
   const [petData, setPetData] = useState<ContractPet | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [petName, setPetName] = useState('Fluffy');
   const [petType, setPetType] = useState('Dragon Pup');
+  const [petSpecies, setPetSpecies] = useState<number>(1);
   const [coins, setCoins] = useState(100);
   const [showAlert, setShowAlert] = useState<{
     visible: boolean;
@@ -329,120 +329,64 @@ export default function HomeScreen() {
     icon: '🎮'
   });
 
-  // Helper function to parse Uint256 values from contract response
-  const parseUint256 = (low: string, high: string): number => {
-    const lowBig = BigInt(low);
-    const highBig = BigInt(high);
-    const result = lowBig + (highBig << 128n);
-    return Number(result);
-  };
 
-  // Helper function to parse contract pet response
-  const parsePetContractResponse = (response: string[]): ContractPet | null => {
-    try {
-      console.log('Raw contract response:', response);
-      console.log('Response length:', response.length);
-
-      // Expected format based on your response:
-      // [token_id_low, token_id_high, owner, pet_type, name, level_low, level_high, 
-      //  xp_low, xp_high, energy_low, energy_high, hunger_low, hunger_high, 
-      //  happiness_low, happiness_high, last_fed_low, last_fed_high, 
-      //  total_meals_low, total_meals_high, created_at]
-
-      if (response.length < 19) {
-        console.log('Invalid response length:', response.length);
-        return null;
-      }
-
-      const pet: ContractPet = {
-        id: parseUint256(response[0], response[1]).toString(),
-        owner: response[2],
-        pet_type: response[3],
-        name: response[4],
-        level: parseUint256(response[5], response[6]),
-        xp: parseUint256(response[7], response[8]),
-        energy: parseUint256(response[9], response[10]),
-        hunger: parseUint256(response[11], response[12]),
-        happiness: parseUint256(response[13], response[14]),
-        last_fed: parseUint256(response[15], response[16]),
-        total_meals: parseUint256(response[17], response[18]),
-        created_at: response.length > 19 ? Number(response[19]) : 0,
-      };
-
-      // Log parsed values for debugging
-      console.log('Parsed pet data:', {
-        id: pet.id,
-        level: pet.level,
-        xp: pet.xp,
-        energy: pet.energy,
-        hunger: pet.hunger,
-        happiness: pet.happiness,
-        last_fed: pet.last_fed,
-        total_meals: pet.total_meals,
-      });
-
-      // Decode pet type and name from felt252
-      try {
-        const decodedType = shortString.decodeShortString(pet.pet_type);
-        const decodedName = shortString.decodeShortString(pet.name);
-        console.log('Decoded pet type:', decodedType);
-        console.log('Decoded pet name:', decodedName);
-        
-        pet.pet_type = decodedType;
-        pet.name = decodedName;
-      } catch (e) {
-        console.log('Could not decode pet type/name:', e);
-      }
-
-      return pet;
-    } catch (error) {
-      console.log('Error parsing pet contract response:', error);
-      return null;
-    }
-  };
 
   // Fetch pet data from contract
   const fetchPetData = async () => {
     try {
       setIsLoading(true);
       const contractPetData = await walletManager.getPet();
-      
-      if (contractPetData && contractPetData.length > 0) {
-        const pet = parsePetContractResponse(contractPetData);
-        
-        if (pet) {
-          setPetData(pet);
-          
-          // Update local stats with contract data
-          setPetStats({
-            hunger: pet.hunger,
-            happiness: pet.happiness,
-            energy: pet.energy,
-            level: pet.level,
-            xp: pet.xp
-          });
 
-          setPetName(pet.name || 'Pet');
-          setPetType(pet.pet_type || petTypeMap[pet.name] || 'Pet');
-        } else {
-          throw new Error('Failed to parse pet data');
-        }
+      console.log("contractPetData", contractPetData)
+      
+      if (contractPetData) {
+        // contractPetData is now a parsed PetData object from walletManager
+        const pet: ContractPet = {
+          id: contractPetData.id,
+          owner: '', // Not needed for display
+          pet_type: contractPetData.name,
+          name: contractPetData.name,
+          level: contractPetData.level,
+          xp: contractPetData.experience, // Use experience from contract
+          energy: contractPetData.energy,
+          hunger: Math.max(0, 100 - contractPetData.energy), // Calculate hunger from energy
+          happiness: Math.min(100, contractPetData.health + contractPetData.energy) / 2, // Calculate happiness from health + energy
+          last_fed: 0, // Not available in simplified format
+          total_meals: 0, // Not available in simplified format
+          created_at: 0, // Not available in simplified format
+        };
+
+        setPetData(pet);
+        
+        // Update local stats with contract data
+        setPetStats({
+          health: contractPetData.health,
+          energy: contractPetData.energy,
+          nutrition_score: contractPetData.nutrition_score,
+          level: contractPetData.level,
+          experience: contractPetData.experience
+        });
+
+        setPetName(pet.name);
+        setPetType(pet.pet_type);
+        setPetSpecies(contractPetData.type);
       } else {
         // No pet found - show default values
-        console.log('No pet found for this wallet');
+        console.log('No pet data returned from contract');
         setShowAlert({
           visible: true,
           title: 'No Pet Found',
-          message: 'You need to mint a pet first. Check your wallet setup.',
+          message: 'You need to mint a pet first. Check your wallet setup or mint a new pet.',
           icon: 'error'
         });
       }
     } catch (error) {
       console.log('Error fetching pet data:', error);
+      
       setShowAlert({
         visible: true,
         title: 'Error',
-        message: 'Could not load pet data. Using demo mode.',
+        message: 'Could not load pet data. Please check your connection and try again.',
         icon: 'error'
       });
     } finally {
@@ -469,10 +413,10 @@ export default function HomeScreen() {
     // Update stats
     setPetStats(prev => ({
       ...prev,
-      hunger: Math.min(100, prev.hunger + (food.nutritionScore / 2)),
-      happiness: Math.min(100, prev.happiness + (food.nutritionScore / 3)),
+      health: Math.min(100, prev.health + (food.nutritionScore / 4)),
       energy: Math.min(100, prev.energy + food.energyGain),
-      xp: prev.xp + food.nutritionScore,
+      nutrition_score: prev.nutrition_score + food.nutritionScore,
+      experience: prev.experience + food.nutritionScore,
     }));
 
     setCoins(prev => prev - food.cost);
@@ -485,28 +429,27 @@ export default function HomeScreen() {
     });
   };
 
-  const handlePetInteraction = (happinessGain: number) => {
+  const handlePetInteraction = (energyGain: number) => {
     setPetStats(prev => ({
       ...prev,
-      happiness: Math.min(100, prev.happiness + happinessGain),
-      xp: prev.xp + 5,
+      health: Math.min(100, prev.health + energyGain / 2),
+      experience: prev.experience + 5,
     }));
   };
 
   const handlePetPetting = () => {
     setPetStats(prev => ({
       ...prev,
-      happiness: Math.min(100, prev.happiness + 8),
-      xp: prev.xp + 3,
+      health: Math.min(100, prev.health + 8),
+      experience: prev.experience + 3,
     }));
   };
 
   const handlePetPlaying = () => {
     setPetStats(prev => ({
       ...prev,
-      happiness: Math.min(100, prev.happiness + 12),
-      energy: Math.max(0, prev.energy - 5),
-      xp: prev.xp + 8,
+      health: Math.min(100, prev.health + 12),
+      experience: prev.experience + 8,
     }));
   };
 
@@ -545,7 +488,7 @@ export default function HomeScreen() {
         <View style={styles.darkOverlay} />
         <View style={styles.loadingContainer}>
           <LottieView
-            source={petAnimationMap[petName] || require('@/assets/animations/lottie-1.json')}
+            source={petAnimationMap[petSpecies] || require('@/assets/animations/lottie-1.json')}
             style={styles.loadingLottie}
             autoPlay
             loop
@@ -573,18 +516,17 @@ export default function HomeScreen() {
           <View style={styles.header}>
             <View style={styles.headerInfo}>
               <Text style={styles.levelText}>Level {petStats.level}</Text>
-              <Text style={styles.xpText}>XP: {petStats.xp}/{(petStats.level * 100)}</Text>
+              <Text style={styles.xpText}>XP: {petStats.experience}/{(petStats.level * 100)}</Text>
               {petData && (
                 <Text style={styles.petIdText}>Pet ID: #{petData.id}</Text>
               )}
             </View>
             <View style={styles.headerRight}>
-            <View style={styles.coinsContainer}>
-              <Text style={styles.coinsText}>💰 {coins}</Text>
+              <View style={styles.coinsContainer}>
+                <TouchableOpacity style={styles.refreshButton}  onPress={handleRefresh}>
+                  <Ionicons name="refresh" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
-                <Ionicons name="refresh" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
             </View>
           </View>
 
@@ -596,17 +538,18 @@ export default function HomeScreen() {
             onPlay={handlePetPlaying}
             petName={petName}
             petType={petType}
+            petSpecies={petSpecies}
           />
 
           {/* Stats */}
           <View style={styles.statsSection}>
-            <StatBar label="Hunger" value={petStats.hunger} emoji="🍽️" />
-            <StatBar label="Happiness" value={petStats.happiness} emoji="❤️" />
+            <StatBar label="Health" value={petStats.health} emoji="❤️" />
             <StatBar label="Energy" value={petStats.energy} emoji="⚡" />
+            <StatBar label="Nutrition" value={Math.min(100, petStats.nutrition_score / 10)} emoji="🍽️" />
           </View>
 
           {/* Food Items */}
-          <View style={styles.foodSection}>
+          {/* <View style={styles.foodSection}>
             <Text style={styles.sectionTitle}>Feed Your Pet</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.foodScroll}>
               {foodItems.map((food) => (
@@ -626,20 +569,22 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-          </View>
+          </View> */}
 
           {/* Action Buttons */}
           <View style={styles.actionsSection}>
             <GameButton
-            title='Scan meal'
+              title='Scan meal'
               variant='primary'
-              onPress={() => router.push('/(game)/meal-scan')}
+              onPress={() => router.push('/(game)/(tabs)/scan')}
+              style={styles.actionButton}
             />
 
-  <GameButton
-            title='Go to battle'
+            <GameButton
+              title='Go to battle'
               variant='success'
               onPress={() => router.push('/(game)/(tabs)/battle')}
+              style={styles.actionButton}
             />
           </View>
 
@@ -703,8 +648,6 @@ const styles = StyleSheet.create({
     color: '#B0B0B0',
   },
   coinsContainer: {
-    backgroundColor: Colors.cardBackground,
-    paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
   },
@@ -771,6 +714,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 10,
     opacity: 0.7,
+    color: '#FFFFFF',
   },
   hintText: {
     fontSize: 10,
@@ -894,6 +838,9 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
     gap: 12,
     width: "100%"
+  },
+  actionButton: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,

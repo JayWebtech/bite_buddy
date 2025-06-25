@@ -356,8 +356,8 @@ export default function ProfileScreen() {
         visible={showAlert.visible}
         title={showAlert.title}
         message={showAlert.message}
-        icon={showAlert.icon}
-        iconType="emoji"
+        icon='success'
+        iconType='image'
         onClose={() => setShowAlert(prev => ({ ...prev, visible: false }))}
       />
     </View>

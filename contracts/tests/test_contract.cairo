@@ -1,8 +1,8 @@
 use starknet::ContractAddress;
 use starknet::contract_address_const;
 use snforge_std::{declare, ContractClassTrait, DeclareResultTrait, start_cheat_caller_address, start_cheat_block_timestamp, stop_cheat_caller_address, stop_cheat_block_timestamp};
-use contracts::BiteBuddy::{BiteBuddy};
 use contracts::interface::IBiteBuddy::{IBiteBuddy, IBiteBuddyDispatcher, IBiteBuddyDispatcherTrait};
+use contracts::BiteBuddy::BiteBuddyV2;
 use contracts::base::structs::{Pet, Meal};
 use contracts::base::constants::{
     SPECIES_VEGGIE_FLUFFY, SPECIES_PROTEIN_SPARKLE, SPECIES_BALANCE_THUNDER, 
@@ -36,6 +36,37 @@ fn test_mint_pet() {
     assert(pet.species == SPECIES_VEGGIE_FLUFFY, 'Species should match');
     assert(pet.level == 1, 'Level should be 1');
     assert(pet.health == 100, 'Health should be 100');
+    
+    stop_cheat_caller_address(contract_address);
+    stop_cheat_block_timestamp(contract_address);
+}
+#[test]
+fn test_get_pets_by_owner() {
+    let (contract_address, bite_buddy) = deploy_contract();
+    let user = contract_address_const::<0x456>();
+    let erc721 = IERC721Dispatcher { contract_address };
+    
+    start_cheat_caller_address(contract_address, user);
+    start_cheat_block_timestamp(contract_address, 1000);
+    
+    let pet_id = bite_buddy.mint_pet(SPECIES_VEGGIE_FLUFFY);
+    
+    assert(pet_id == 1, 'Pet ID should be 1');
+    assert(bite_buddy.get_pet_count() == 1, 'Pet count should be 1');
+    assert(erc721.owner_of(pet_id) == user, 'User should own pet');
+    
+    let pet = bite_buddy.get_pet(pet_id);
+    assert(pet.owner == user, 'Pet owner should be user');
+    assert(pet.species == SPECIES_VEGGIE_FLUFFY, 'Species should match');
+    assert(pet.level == 1, 'Level should be 1');
+    assert(pet.health == 100, 'Health should be 100');
+
+    let pets = bite_buddy.get_pets_by_owner(user);
+    println!("pets: {:?}", pets);
+    assert(pets.owner == user, 'Pet owner should be user');
+    assert(pets.species == SPECIES_VEGGIE_FLUFFY, 'Species should match');
+    assert(pets.level == 1, 'Level should be 1');
+    assert(pets.health == 100, 'Health should be 100');
     
     stop_cheat_caller_address(contract_address);
     stop_cheat_block_timestamp(contract_address);
@@ -84,24 +115,6 @@ fn test_scan_and_feed_meal() {
     
     stop_cheat_caller_address(contract_address);
     stop_cheat_block_timestamp(contract_address);
-}
-
-#[test]
-fn test_multiple_pets() {
-    let (contract_address, bite_buddy) = deploy_contract();
-    let user = contract_address_const::<0x456>();
-    
-    start_cheat_caller_address(contract_address, user);
-    
-    let pet1_id = bite_buddy.mint_pet(SPECIES_VEGGIE_FLUFFY);
-    let pet2_id = bite_buddy.mint_pet(SPECIES_PROTEIN_SPARKLE);
-    
-    let user_pets = bite_buddy.get_pets_by_owner(user);
-    assert(user_pets.len() == 2, 'User should have 2 pets');
-    assert(*user_pets.at(0) == pet1_id, 'First pet should match');
-    assert(*user_pets.at(1) == pet2_id, 'Second pet should match');
-    
-    stop_cheat_caller_address(contract_address);
 }
 
 #[test]

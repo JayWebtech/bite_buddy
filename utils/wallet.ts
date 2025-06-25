@@ -29,9 +29,10 @@ export interface PetData {
   type: number;
   name: string;
   level: number;
+  experience: number;
+  health: number;
   energy: number;
-  hunger: number;
-  happiness: number;
+  nutrition_score: number;
 }
 
 export class BiteBuddyWallet {
@@ -527,7 +528,7 @@ export class BiteBuddyWallet {
     }
   }
 
-  async getPet(): Promise<any> {
+  async getPet(): Promise<PetData | null> {
     try {
       const walletInfo = await this.getWalletInfo();
       
@@ -542,11 +543,70 @@ export class BiteBuddyWallet {
       };
 
       const result = await this.provider.callContract(call);
-      console.log("result", result)
-      return result;
+      console.log("Raw contract response:", result);
+      
+      if (!result || result.length < 20) {
+        console.log('Invalid response length:', result?.length);
+        return null;
+      }
+
+      // Debug: log each field with its index
+      console.log("Contract response breakdown:");
+      result.forEach((field, index) => {
+        console.log(`[${index}]: ${field} (hex: ${field}, decimal: ${parseInt(field, 16)})`);
+      });
+
+      // Parse Pet struct fields from contract response
+      // Pet struct order: pet_id, owner, species, level, experience, health, energy, 
+      // nutrition_score, evolution_stage, last_meal_timestamp, total_meals, 
+      // battle_wins, battle_losses, created_at
+      
+      const petId = parseInt(result[0], 16).toString(); // pet_id
+      const owner = result[2]; // owner (ContractAddress)
+      const species = parseInt(result[3], 16); // species
+      const level = parseInt(result[4], 16); // level
+      const experience = parseInt(result[5], 16) + (parseInt(result[6], 16) << 128); // experience (u256)
+      const health = parseInt(result[7], 16); // health
+      const energy = parseInt(result[8], 16); // energy
+      const nutrition_score = parseInt(result[9], 16) + (parseInt(result[10], 16) << 128); // nutrition_score (u256)
+      
+      const pet: PetData = {
+        id: petId,
+        type: species,
+        name: this.getSpeciesName(species),
+        level: level,
+        experience: experience,
+        health: health,
+        energy: energy,
+        nutrition_score: nutrition_score,
+      };
+
+      console.log("Parsed values:", {
+        petId,
+        species,
+        level,
+        experience,
+        health,
+        energy,
+        nutrition_score,
+        speciesName: this.getSpeciesName(species)
+      });
+
+      console.log("Parsed pet data:", pet);
+      return pet;
     } catch (error) {
-      console.log('Error fetching pet data class:', error);
-      throw error;
+      console.log('Error fetching pet data:', error);
+      return null;
+    }
+  }
+
+  private getSpeciesName(species: number): string {
+    switch(species) {
+      case 1: return 'Veggie Fluffy';
+      case 2: return 'Protein Sparkle'; 
+      case 3: return 'Balance Thunder';
+      case 4: return 'Balance Mystic';
+      default: return 'Unknown Species';
     }
   }
 
