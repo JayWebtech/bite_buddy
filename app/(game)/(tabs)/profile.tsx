@@ -4,6 +4,7 @@ import { Colors } from '@/constants/Colors';
 import { WalletInfo, walletManager } from '@/utils/wallet';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import { Alert, Clipboard, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -174,7 +175,8 @@ export default function ProfileScreen() {
     onCopy: () => void;
     isPrivate?: boolean;
   }) => (
-    <View style={styles.infoCard}>
+    <LinearGradient
+    colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']} style={styles.infoCard}>
       <View style={styles.infoHeader}>
         <Text style={styles.infoTitle}>{title}</Text>
         <TouchableOpacity onPress={onCopy} style={styles.copyButton}>
@@ -189,7 +191,7 @@ export default function ProfileScreen() {
           Short: {formatAddress(value)}
         </Text>
       )}
-    </View>
+    </LinearGradient>
   );
 
   if (isLoading) {
@@ -438,10 +440,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   infoCard: {
-    backgroundColor: Colors.background,
     padding: 16,
     borderRadius: 8,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   infoHeader: {
     flexDirection: 'row',

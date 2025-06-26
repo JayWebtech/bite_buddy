@@ -11,6 +11,7 @@ import {
   Call,
   CallData,
   constants,
+  Contract,
   ec,
   GetTransactionReceiptResponse,
   hash,
@@ -741,7 +742,247 @@ export class BiteBuddyWallet {
       return [];
     }
   }
+
+  // Battle System Integration
+  async initiateBattleVsComputer(petId: string, opponentId: number, pin?: string): Promise<string | null> {
+    try {
+      const contract_address = Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR;
+      if (!contract_address) {
+        throw new Error('BITEBUDDY_CONTRACT_ADDR environment variable is not set');
+      }
+
+      const account = await this.initializeAccount(pin);
+      
+      console.log(`Initiating battle: Pet ${petId} vs Computer Opponent ${opponentId}`);
+
+      const petIdBigInt = BigInt(petId);
+      const low = petIdBigInt & BigInt('0xffffffffffffffffffffffffffffffff');
+      const high = petIdBigInt >> BigInt(128);
+
+      console.log("low", low.toString());
+      console.log("high", high.toString());
+      console.log("opponentId", opponentId.toString());
+
+      const calls: Call[] = [
+        {
+        contractAddress: Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR,
+        entrypoint: 'initiate_battle_vs_computer',
+        calldata: [low.toString(), high.toString(), opponentId.toString()],
+        },
+      ];
+
+      const { transaction_hash: txH } = await account.execute(calls, {
+        version: 3,
+      });
+
+      console.log('Transaction hash:', txH);
+
+      const txR = await this.provider.waitForTransaction(txH);
+      console.log('Transaction result:', txR);
+      
+      return txR.isSuccess() ? txH : null;
+    } catch (error) {
+      console.error('Error initiating battle vs computer:', error);
+      return null;
+    }
+  }
+
+  async executeBattleMove(battleId: string, selectedCards: number[], pin?: string): Promise<{
+    success: boolean;
+    winner?: string;
+    battleLog?: string[];
+    error?: string;
+  }> {
+    try {
+      const contract_address = Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR;
+      if (!contract_address) {
+        throw new Error('BITEBUDDY_CONTRACT_ADDR environment variable is not set');
+      }
+
+      const account = await this.initializeAccount(pin);
+      const { abi } = await this.provider.getClassAt(contract_address);
+      const BiteBuddyContract = new Contract(abi, contract_address, account);
+
+      console.log(`Executing battle move for battle ${battleId} with cards:`, selectedCards);
+
+      // Create a mock session signature for now (in production, would need proper session key management)
+      const mockSessionSignature = [account.address]; // Simplified session signature
+
+      const calldata = CallData.compile({
+        battle_id: battleId,
+        challenger_cards: selectedCards,
+        session_signature: mockSessionSignature
+      });
+
+      const result = await BiteBuddyContract.execute_battle_with_session(calldata);
+      console.log('Battle execution result:', result);
+
+      // Wait for transaction confirmation
+      await this.provider.waitForTransaction(result.transaction_hash);
+
+      // Get battle result from the transaction receipt or events
+      const battleData = await this.getBattleResult(battleId);
+      
+      return {
+        success: true,
+        winner: battleData.winner,
+        battleLog: battleData.battleLog || [`Battle executed with transaction: ${result.transaction_hash}`]
+      };
+    } catch (error) {
+      console.error('Error executing battle move:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error executing battle move'
+      };
+    }
+  }
+
+  async getBattleResult(battleId: string): Promise<{
+    battle: any;
+    winner: string;
+    isCompleted: boolean;
+    battleLog?: string[];
+  }> {
+    try {
+      const contract_address = Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR;
+      if (!contract_address) {
+        throw new Error('BITEBUDDY_CONTRACT_ADDR environment variable is not set');
+      }
+
+      const account = await this.initializeAccount();
+      const { abi } = await this.provider.getClassAt(contract_address);
+      const BiteBuddyContract = new Contract(abi, contract_address, account);
+
+      const battle = await BiteBuddyContract.get_battle(battleId);
+      console.log('Battle data:', battle);
+
+      return {
+        battle,
+        winner: battle.winner?.toString() || '0',
+        isCompleted: battle.completed || false,
+        battleLog: battle.battleLog || []
+      };
+    } catch (error) {
+      console.error('Error getting battle result:', error);
+      return {
+        battle: null,
+        winner: '0',
+        isCompleted: false,
+        battleLog: ['Error fetching battle data']
+      };
+    }
+  }
+
+  async getComputerOpponent(opponentId: number): Promise<{
+    id: string;
+    name: string;
+    level: number;
+    health: number;
+    species: number;
+  } | null> {
+    try {
+      const contract_address = Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR;
+      if (!contract_address) {
+        throw new Error('BITEBUDDY_CONTRACT_ADDR environment variable is not set');
+      }
+
+      const call = {
+        contractAddress: Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR,
+        entrypoint: 'get_computer_opponent',
+        calldata: [opponentId.toString()],
+      };
+
+      const opponent = await this.provider.callContract(call);
+      console.log("Raw opponent response:", opponent);
+
+      if (!opponent || opponent.length < 20 || opponent[0] === '0x0') {
+        console.log(`⚠️ Contract opponent ${opponentId} not initialized or invalid response`);
+        return null;
+      }
+
+      // Parse Pet struct fields based on Cairo contract definition:
+      // pet_id: u256 (indices 0-1)
+      // owner: ContractAddress (index 2) 
+      // species: u8 (index 3)
+      // level: u8 (index 4)
+      // experience: u256 (indices 5-6)
+      // health: u8 (index 7)
+      // energy: u8 (index 8)
+      // nutrition_score: u256 (indices 9-10)
+      // evolution_stage: u8 (index 11)
+      // last_meal_timestamp: u64 (index 12)
+      // total_meals: u256 (indices 13-14)
+      // battle_wins: u256 (indices 15-16)
+      // battle_losses: u256 (indices 17-18)
+      // created_at: u64 (index 19)
+
+      const petId = BigInt(opponent[0] || '0x0').toString();
+      const species = parseInt(opponent[3] || '0x1', 16);
+      const level = parseInt(opponent[4] || '0x1', 16);
+      const health = parseInt(opponent[7] || '0x64', 16); // Default 100 health
+      
+      console.log(`✅ Parsed opponent ${opponentId}: ID=${petId}, Level=${level}, Health=${health}, Species=${species}`);
+
+      return {
+        id: petId,
+        name: this.getOpponentName(opponentId),
+        level: level,
+        health: health,
+        species: species
+      };
+    } catch (error) {
+      console.error('Error getting computer opponent:', error);
+      return null;
+    }
+  }
+
+  private getOpponentName(opponentId: number): string {
+    const names = {
+      1: 'Wild Pup',
+      2: 'Forest Guardian', 
+      3: 'Shadow Beast'
+    };
+    return names[opponentId as keyof typeof names] || `Opponent ${opponentId}`;
+  }
+
+  async createSessionKey(duration: number = 24, maxBattles: number = 10, pin?: string): Promise<boolean> {
+    try {
+      const account = await this.initializeAccount(pin);
+      const contract_address = Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR;
+      if (!contract_address) {
+        throw new Error('BITEBUDDY_CONTRACT_ADDR environment variable is not set');
+      }
+
+      const { abi } = await this.provider.getClassAt(contract_address);
+      const BiteBuddyContract = new Contract(abi, contract_address, account);
+
+      // Generate session key pair
+      const sessionPrivateKey = ec.starkCurve.utils.randomPrivateKey();
+      const sessionPublicKey = ec.starkCurve.getStarkKey(sessionPrivateKey);
+
+      const calldata = CallData.compile({
+        session_public_key: sessionPublicKey,
+        permissions: 1, // Battle permission
+        duration_hours: duration,
+        max_battles: maxBattles,
+        max_energy_per_battle: 50
+      });
+
+      const result = await BiteBuddyContract.create_session_key(calldata);
+      console.log('Session key creation result:', result);
+
+      // Store session key securely
+      await SecureStore.setItemAsync("session_private_key", sessionPrivateKey.toString());
+      await SecureStore.setItemAsync("session_public_key", sessionPublicKey);
+      
+      await this.provider.waitForTransaction(result.transaction_hash);
+      return true;
+    } catch (error) {
+      console.error('Error creating session key:', error);
+      return false;
+    }
+  }
 }
 
 // Export singleton instance
-export const walletManager = new BiteBuddyWallet(); 
+export const walletManager = new BiteBuddyWallet();

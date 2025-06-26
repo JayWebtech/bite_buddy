@@ -321,11 +321,6 @@ export default function ScanScreen() {
               onPress: () => router.push('/(game)/(tabs)/collection'),
               variant: 'success'
             },
-            {
-              text: 'View Pet',
-              onPress: () => router.push('/(game)/(tabs)/home'),
-              variant: 'primary'
-            },
           ]
         );
       } else {
@@ -578,7 +573,7 @@ export default function ScanScreen() {
 
             <View style={styles.analysisCard}>
               <LinearGradient
-                colors={[Colors.cardBackground, Colors.darkCard]}
+                colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
                 style={styles.cardGradient}
               >
                 <View style={styles.foodHeader}>
@@ -741,21 +736,21 @@ export default function ScanScreen() {
             </View>
             
             <View style={styles.featuresSection}>
-              <View style={styles.featureCard}>
+              <LinearGradient colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']} style={styles.featureCard}>
                 <Text style={styles.featureEmoji}>🤖</Text>
                 <Text style={styles.featureTitle}>AI Analysis</Text>
                 <Text style={styles.featureDescription}>Advanced nutrition recognition</Text>
-              </View>
-              <View style={styles.featureCard}>
+              </LinearGradient>
+              <LinearGradient colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']} style={styles.featureCard}>
                 <Text style={styles.featureEmoji}>🏆</Text>
                 <Text style={styles.featureTitle}>NFT Rewards</Text>
                 <Text style={styles.featureDescription}>Collectible meal tokens</Text>
-              </View>
-              <View style={styles.featureCard}>
+              </LinearGradient>
+              <LinearGradient colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']} style={styles.featureCard}>
                 <Text style={styles.featureEmoji}>📈</Text>
                 <Text style={styles.featureTitle}>Pet Growth</Text>
                 <Text style={styles.featureDescription}>Level up your companion</Text>
-              </View>
+              </LinearGradient>
             </View>
             
             <View style={styles.buttonContainer}>
@@ -863,13 +858,12 @@ const styles = StyleSheet.create({
   },
   featureCard: {
     alignItems: 'center',
-    backgroundColor: Colors.cardBackground,
     borderRadius: 12,
     padding: 16,
     flex: 1,
     marginHorizontal: 5,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   featureEmoji: {
     fontSize: 24,
@@ -1175,14 +1169,15 @@ const styles = StyleSheet.create({
   },
   analysisCard: {
     marginHorizontal: 20,
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: 'hidden',
     marginBottom: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   cardGradient: {
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     padding: 20,
+    borderRadius: 14,
   },
   foodHeader: {
     flexDirection: 'row',
@@ -1232,11 +1227,9 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: Colors.darkCard,
+    backgroundColor: Colors.background,
     padding: 16,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   statEmoji: {
     fontSize: 28,

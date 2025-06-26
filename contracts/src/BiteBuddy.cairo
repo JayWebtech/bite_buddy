@@ -1,5 +1,5 @@
 #[starknet::contract]
-pub mod BiteBuddyV3 {
+pub mod BiteBuddyV4 {
     use openzeppelin::access::ownable::OwnableComponent;
     use openzeppelin::introspection::src5::SRC5Component;
     use openzeppelin::token::erc721::{ERC721Component, ERC721HooksEmptyImpl};
@@ -37,6 +37,8 @@ pub mod BiteBuddyV3 {
         meals: Map<u256, Meal>,
         battles: Map<u256, Battle>,
         session_keys: Map<felt252, SessionKey>,
+        // Computer opponents - virtual pets that don't need NFTs
+        computer_opponents: Map<u8, Pet>,
         // Mappings
         owner_pets: Map<(ContractAddress, u256), u256>,
         owner_pet_count: Map<ContractAddress, u256>,
@@ -68,6 +70,7 @@ pub mod BiteBuddyV3 {
         PetEvolved: PetEvolved,
         BattleCompleted: BattleCompleted,
         SessionKeyCreated: SessionKeyCreated,
+        ComputerOpponentAdded: ComputerOpponentAdded,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -98,6 +101,7 @@ pub mod BiteBuddyV3 {
         battle_id: u256,
         winner_pet: u256,
         loser_pet: u256,
+        is_computer_opponent: bool,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -105,6 +109,13 @@ pub mod BiteBuddyV3 {
         owner: ContractAddress,
         public_key: felt252,
         expires_at: u64,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct ComputerOpponentAdded {
+        opponent_id: u8,
+        name: felt252,
+        level: u8,
     }
 
     #[constructor]
@@ -118,6 +129,9 @@ pub mod BiteBuddyV3 {
         self.next_pet_id.write(1);
         self.next_meal_id.write(1);
         self.next_battle_id.write(1);
+        
+        // Initialize computer opponents
+        self._initialize_computer_opponents();
     }
 
     #[abi(embed_v0)]
@@ -364,6 +378,39 @@ pub mod BiteBuddyV3 {
             self.session_keys.write(public_key, empty_session);
         }
 
+        fn initiate_battle_vs_computer(
+            ref self: ContractState, challenger_pet: u256, computer_opponent_id: u8,
+        ) -> u256 {
+            let caller = get_caller_address();
+            let challenger = self.pets.read(challenger_pet);
+            let battle_id = self.next_battle_id.read();
+
+            // Validate ownership and energy
+            assert(challenger.owner == caller, 'Not challenger owner');
+            assert(challenger.energy >= 20, 'Insufficient energy');
+
+            // Validate computer opponent exists
+            let computer_opponent = self.computer_opponents.read(computer_opponent_id);
+            assert(computer_opponent.pet_id != 0, 'Invalid computer opponent');
+
+            // Create battle with computer opponent (use negative ID to distinguish)
+            let battle = Battle {
+                battle_id,
+                challenger_pet,
+                defender_pet: 1000 + computer_opponent_id.into(), // Use offset for computer opponents
+                winner: 0,
+                energy_spent: 20,
+                rewards: 0,
+                timestamp: get_block_timestamp(),
+                completed: false,
+            };
+
+            self.battles.write(battle_id, battle);
+            self.next_battle_id.write(battle_id + 1);
+
+            battle_id
+        }
+
         fn initiate_battle(
             ref self: ContractState, challenger_pet: u256, defender_pet: u256,
         ) -> u256 {
@@ -423,6 +470,8 @@ pub mod BiteBuddyV3 {
             battle.completed = true;
             self.battles.write(battle_id, battle);
 
+            let is_computer_opponent = battle.defender_pet >= 1000;
+
             self
                 .emit(
                     BattleCompleted {
@@ -433,12 +482,51 @@ pub mod BiteBuddyV3 {
                         } else {
                             battle.challenger_pet
                         },
+                        is_computer_opponent,
                     },
                 );
         }
 
         fn get_battle(self: @ContractState, battle_id: u256) -> Battle {
             self.battles.read(battle_id)
+        }
+
+        fn get_computer_opponent(self: @ContractState, opponent_id: u8) -> Pet {
+            self.computer_opponents.read(opponent_id)
+        }
+
+        fn add_computer_opponent(
+            ref self: ContractState,
+            opponent_id: u8,
+            name: felt252,
+            species: u8,
+            level: u8,
+            health: u8,
+            attack: u8,
+            defense: u8,
+        ) {
+            self.ownable.assert_only_owner();
+
+            let computer_opponent = Pet {
+                pet_id: 1000 + opponent_id.into(), // Use offset for computer opponents
+                owner: starknet::contract_address_const::<0>(), // No owner for computer opponents
+                species,
+                level,
+                experience: (level.into() * level.into() * 100), // Level-based experience
+                health,
+                energy: 100, // Computer opponents always have full energy
+                nutrition_score: (level.into() * 50), // Level-based nutrition
+                evolution_stage: if level >= 10 { 2 } else if level >= 5 { 1 } else { 0 },
+                last_meal_timestamp: 0,
+                total_meals: level.into() * 10, // Level-based meal count
+                battle_wins: level.into() * 5, // Level-based wins
+                battle_losses: 0,
+                created_at: get_block_timestamp(),
+            };
+
+            self.computer_opponents.write(opponent_id, computer_opponent);
+
+            self.emit(ComputerOpponentAdded { opponent_id, name, level });
         }
 
         fn check_evolution(ref self: ContractState, pet_id: u256) -> bool {
@@ -470,7 +558,7 @@ pub mod BiteBuddyV3 {
                 );
         }
 
-        fn get_leaderboard(self: @ContractState) -> Array<(u256, u256)> {
+        fn get_leaderboard(self: @ContractState) -> Array<(u256, u256, ContractAddress)> {
             // Simplified leaderboard - would need proper sorting
             let mut leaderboard = ArrayTrait::new();
             let total_pets = self.total_pets.read();
@@ -479,7 +567,7 @@ pub mod BiteBuddyV3 {
 
             while i != max_count + 1 {
                 let pet = self.pets.read(i);
-                leaderboard.append((pet.pet_id, pet.nutrition_score));
+                leaderboard.append((pet.pet_id, pet.nutrition_score, pet.owner));
                 i += 1;
             }
 
@@ -508,6 +596,68 @@ pub mod BiteBuddyV3 {
 
     #[generate_trait]
     impl InternalImpl of InternalTrait {
+        fn _initialize_computer_opponents(ref self: ContractState) {
+            // Initialize default computer opponents
+            let zero_address = starknet::contract_address_const::<0>();
+            
+            // Wild Pup - Level 1
+            let wild_pup = Pet {
+                pet_id: 1001,
+                owner: zero_address,
+                species: SPECIES_VEGGIE_FLUFFY,
+                level: 1,
+                experience: 100,
+                health: 80,
+                energy: 100,
+                nutrition_score: 50,
+                evolution_stage: 0,
+                last_meal_timestamp: 0,
+                total_meals: 5,
+                battle_wins: 2,
+                battle_losses: 1,
+                created_at: get_block_timestamp(),
+            };
+            self.computer_opponents.write(1, wild_pup);
+
+            // Forest Guardian - Level 2
+            let forest_guardian = Pet {
+                pet_id: 1002,
+                owner: zero_address,
+                species: SPECIES_PROTEIN_SPARKLE,
+                level: 2,
+                experience: 400,
+                health: 120,
+                energy: 100,
+                nutrition_score: 100,
+                evolution_stage: 0,
+                last_meal_timestamp: 0,
+                total_meals: 15,
+                battle_wins: 8,
+                battle_losses: 2,
+                created_at: get_block_timestamp(),
+            };
+            self.computer_opponents.write(2, forest_guardian);
+
+            // Shadow Beast - Level 3
+            let shadow_beast = Pet {
+                pet_id: 1003,
+                owner: zero_address,
+                species: SPECIES_BALANCE_THUNDER,
+                level: 3,
+                experience: 900,
+                health: 150,
+                energy: 100,
+                nutrition_score: 150,
+                evolution_stage: 1,
+                last_meal_timestamp: 0,
+                total_meals: 25,
+                battle_wins: 15,
+                battle_losses: 3,
+                created_at: get_block_timestamp(),
+            };
+            self.computer_opponents.write(3, shadow_beast);
+        }
+
         fn _calculate_meal_quality(
             self: @ContractState,
             calories: u16,
@@ -626,9 +776,141 @@ pub mod BiteBuddyV3 {
         ) -> u256 {
             let battle = self.battles.read(battle_id);
             let challenger = self.pets.read(battle.challenger_pet);
-            let defender = self.pets.read(battle.defender_pet);
+            
+            let winner = if battle.defender_pet >= 1000 {
+                // Computer opponent battle
+                let computer_opponent_id = (battle.defender_pet - 1000).try_into().unwrap();
+                let defender = self.computer_opponents.read(computer_opponent_id);
+                self._execute_computer_battle(challenger, defender, battle)
+            } else {
+                // Player vs player battle
+                let defender = self.pets.read(battle.defender_pet);
+                self._execute_player_battle(challenger, defender, battle)
+            };
 
-            // Simplified battle logic - random winner based on stats
+            winner
+        }
+
+        fn _execute_computer_battle(
+            ref self: ContractState, challenger: Pet, defender: Pet, battle: Battle,
+        ) -> u256 {
+            // Enhanced battle logic with multiple factors
+            
+            // Base stats calculation
+            let challenger_base = self._calculate_battle_power(challenger);
+            let defender_base = self._calculate_battle_power(defender);
+            
+            // Dynamic difficulty scaling based on player level
+            let (adjusted_challenger_power, adjusted_defender_power) = self._apply_dynamic_difficulty(
+                challenger_base, defender_base, challenger.level
+            );
+            
+            // Calculate win probability with skill factor
+            let win_probability = self._calculate_win_probability(
+                adjusted_challenger_power, adjusted_defender_power
+            );
+            
+            // Generate pseudo-random number using multiple entropy sources
+            let random_seed = self._generate_battle_random(battle.battle_id, battle.timestamp);
+            let random_chance = random_seed % 100;
+            
+            let winner = if random_chance < win_probability {
+                // Player wins against computer
+                let mut updated_challenger = challenger;
+                updated_challenger.battle_wins += 1;
+                updated_challenger.energy -= 20;
+                
+                // Dynamic XP based on opponent difficulty
+                let xp_gain = self._calculate_xp_gain(challenger.level, defender.level, true);
+                updated_challenger.experience += xp_gain;
+                
+                self.pets.write(battle.challenger_pet, updated_challenger);
+                battle.challenger_pet
+            } else {
+                // Computer wins
+                let mut updated_challenger = challenger;
+                updated_challenger.battle_losses += 1;
+                updated_challenger.energy -= 20;
+                
+                // Consolation XP (always get something)
+                let xp_gain = self._calculate_xp_gain(challenger.level, defender.level, false);
+                updated_challenger.experience += xp_gain;
+                
+                self.pets.write(battle.challenger_pet, updated_challenger);
+                battle.defender_pet
+            };
+
+            winner
+        }
+
+        fn _calculate_battle_power(self: @ContractState, pet: Pet) -> u256 {
+            // Simplified power calculation
+            pet.level.into() * 10 + pet.nutrition_score / 20 + pet.experience / 200
+        }
+
+        fn _apply_dynamic_difficulty(
+            self: @ContractState, 
+            challenger_power: u256, 
+            defender_power: u256, 
+            player_level: u8
+        ) -> (u256, u256) {
+            // Simplified dynamic scaling
+            if player_level <= 2 {
+                (challenger_power * 120 / 100, defender_power * 85 / 100)
+            } else {
+                (challenger_power, defender_power)
+            }
+        }
+
+        fn _calculate_win_probability(
+            self: @ContractState, 
+            challenger_power: u256, 
+            defender_power: u256
+        ) -> u64 {
+            // Simplified probability calculation
+            let total_power = challenger_power + defender_power;
+            if total_power == 0 {
+                return 50;
+            }
+            
+            let raw_percentage = (challenger_power * 100) / total_power;
+            
+            if raw_percentage < 15 {
+                15
+            } else if raw_percentage > 85 {
+                85
+            } else {
+                raw_percentage.try_into().unwrap()
+            }
+        }
+
+        fn _generate_battle_random(
+            self: @ContractState, 
+            battle_id: u256, 
+            timestamp: u64
+        ) -> u64 {
+            // Simplified random generation
+            ((battle_id.low + timestamp.into()) * 1103515245 + 12345).try_into().unwrap() % 100
+        }
+
+        fn _calculate_xp_gain(
+            self: @ContractState, 
+            player_level: u8, 
+            opponent_level: u8, 
+            won: bool
+        ) -> u256 {
+            // Simplified XP calculation
+            if won {
+                50 + if opponent_level > player_level { (opponent_level - player_level).into() * 10 } else { 0 }
+            } else {
+                15 + if opponent_level > player_level { (opponent_level - player_level).into() * 3 } else { 0 }
+            }.into()
+        }
+
+        fn _execute_player_battle(
+            ref self: ContractState, challenger: Pet, defender: Pet, battle: Battle,
+        ) -> u256 {
+            // Original player vs player battle logic
             let challenger_power = challenger.level.into() + challenger.nutrition_score / 100;
             let defender_power = defender.level.into() + defender.nutrition_score / 100;
 

@@ -1,6 +1,7 @@
 import GameButton from '@/components/ui/GameButton';
 import { Colors, getRarityColor } from '@/constants/Colors';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import LottieView from 'lottie-react-native';
@@ -119,14 +120,15 @@ const InteractivePet: React.FC<{
       delayLongPress={500}
       activeOpacity={0.9}
     >
-      <Animated.View 
+      <LinearGradient
+      colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
         style={[
           styles.petCard,
           isSelected && styles.petCardSelected,
-          {
-            transform: [{ scale: cardScaleAnim }],
-            borderColor: isSelected ? Colors.primary : 'transparent',
-          }
+          // {
+          //   transform: [{ scale: cardScaleAnim }],
+          //   borderColor: isSelected ? Colors.primary : 'transparent',
+          // }
         ]}
       >
         <View style={[styles.rarityBadge, { backgroundColor: getRarityColor(pet.rarity) }]}>
@@ -162,7 +164,7 @@ const InteractivePet: React.FC<{
         <Text style={styles.petName}>{pet.name}</Text>
         <Text style={styles.petType}>{pet.type}</Text>
         
-      </Animated.View>
+      </LinearGradient>
     </TouchableOpacity>
   );
 };
@@ -282,13 +284,13 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: '48%',
     maxWidth: '100%',
-    backgroundColor: Colors.primaryDark,
+    //backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 16,
     padding: 12,
     marginBottom: 12,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -297,7 +299,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   petCardSelected: {
-    shadowColor: Colors.primary,
+    borderColor: Colors.primary,
     shadowOpacity: 0.3,
     elevation: 8,
   },

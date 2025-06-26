@@ -62,6 +62,8 @@ export function MintPetPrompt({ children, screenName = 'this feature' }: MintPet
               onPress: () => {
                 setIsMinted(true);
                 setShowAlert(false);
+                // Force a re-check of mint status to refresh the screen
+                checkMintStatus();
               },
               variant: 'success'
             }

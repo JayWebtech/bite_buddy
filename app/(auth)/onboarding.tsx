@@ -3,6 +3,7 @@ import GameButton from '@/components/ui/GameButton';
 import { Colors } from '@/constants/Colors';
 import { walletManager } from '@/utils/wallet';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Dimensions, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -291,9 +292,10 @@ export default function OnboardingScreen() {
             <Text style={styles.seedTitle}>RECOVERY PHRASE</Text>
           </View>
           
-          <View style={styles.seedContentCard}>
+          <LinearGradient
+            colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']} style={styles.seedContentCard}>
             {!isRevealed ? (
-              <View style={styles.hiddenContainer}>
+              <View>
                 <Text style={styles.hiddenText}>Tap to reveal your seed phrase</Text>
                 <GameButton
                   title={isRevealing ? "REVEALING..." : "REVEAL"}
@@ -333,17 +335,14 @@ export default function OnboardingScreen() {
                 ))}
               </View>
             )}
-          </View>
+          </LinearGradient>
         </Animated.View>
 
         {isRevealed && (
-          <Animated.View
+          <LinearGradient
+          colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
             style={[
               styles.warningContainer,
-              {
-                opacity: warningOpacity,
-                transform: [{ translateY: warningSlideY }],
-              },
             ]}
           >
             <Text style={styles.warningTitle}>⚠️ Important</Text>
@@ -353,7 +352,7 @@ export default function OnboardingScreen() {
               • Never share them with anyone{'\n'}
               • You'll need them to recover your pets
             </Text>
-          </Animated.View>
+          </LinearGradient>
         )}
 
         <View style={styles.actions}>
@@ -456,11 +455,11 @@ const styles = StyleSheet.create({
   },
   seedContainer: {
     marginBottom: 24,
-    backgroundColor: `${Colors.primary}20`,
+    //backgroundColor: `${Colors.primary}50`,
     borderRadius: 20,
     padding: 6,
     borderWidth: 3,
-    borderColor: Colors.primary,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
@@ -469,15 +468,13 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   seedHeaderCard: {
-    backgroundColor: Colors.primary,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 20,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
-    borderWidth: 0,
-    borderBottomWidth: 4,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
+    borderWidth: 1,
     shadowOpacity: 0.6,
     shadowRadius: 12,
     elevation: 10,
@@ -494,29 +491,24 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   seedContentCard: {
-    backgroundColor: Colors.primaryDark,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 16,
-    borderWidth: 0,
-    borderTopWidth: 2,
-    borderTopColor: `${Colors.primary}`,
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
     shadowRadius: 16,
-    elevation: 12,
     position: 'relative',
   },
-  hiddenContainer: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
+  // hiddenContainer: {
+  //   alignItems: 'center',
+  //   paddingVertical: 40,
+  // },
   hiddenText: {
     fontSize: 18,
     fontFamily: 'Blockblueprint',
-    color: '#B0B0B0',
+    color: '#fff',
     marginBottom: 20,
+    textAlign: 'center',
   },
   seedGrid: {
     flexDirection: 'row',
@@ -558,7 +550,8 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   warningContainer: {
-    backgroundColor: Colors.primaryDark,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 12,
     padding: 16,
     marginBottom: 24,

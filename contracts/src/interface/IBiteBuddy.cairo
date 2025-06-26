@@ -40,7 +40,12 @@ pub trait IBiteBuddy<TContractState> {
     fn revoke_session_key(ref self: TContractState, public_key: felt252);
 
     // Battle System
-    fn initiate_battle(ref self: TContractState, challenger_pet: u256, defender_pet: u256) -> u256;
+    fn initiate_battle_vs_computer(
+        ref self: TContractState, challenger_pet: u256, computer_opponent_id: u8,
+    ) -> u256;
+    fn initiate_battle(
+        ref self: TContractState, challenger_pet: u256, defender_pet: u256,
+    ) -> u256;
     fn execute_battle_with_session(
         ref self: TContractState,
         battle_id: u256,
@@ -49,12 +54,25 @@ pub trait IBiteBuddy<TContractState> {
     );
     fn get_battle(self: @TContractState, battle_id: u256) -> Battle;
 
+    // Computer Opponents
+    fn get_computer_opponent(self: @TContractState, opponent_id: u8) -> Pet;
+    fn add_computer_opponent(
+        ref self: TContractState,
+        opponent_id: u8,
+        name: felt252,
+        species: u8,
+        level: u8,
+        health: u8,
+        attack: u8,
+        defense: u8,
+    );
+
     // Evolution System
     fn check_evolution(ref self: TContractState, pet_id: u256) -> bool;
     fn evolve_pet(ref self: TContractState, pet_id: u256);
 
     // Statistics
-    fn get_leaderboard(self: @TContractState) -> Array<(u256, u256)>;
+    fn get_leaderboard(self: @TContractState) -> Array<(u256, u256, ContractAddress)>;
     fn get_pet_count(self: @TContractState) -> u256;
     fn get_total_meals(self: @TContractState) -> u256;
     fn get_meal_metadata(self: @TContractState, meal_id: u256) -> ByteArray;

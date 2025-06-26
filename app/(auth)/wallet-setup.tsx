@@ -4,6 +4,7 @@ import { Colors } from '@/constants/Colors';
 import { WalletInfo, walletManager } from '@/utils/wallet';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Clipboard, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -157,7 +158,8 @@ export default function WalletSetupScreen() {
           </Text>
         </View>
 
-        <View style={styles.walletCard}>
+        <LinearGradient
+      colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']} style={styles.walletCard}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>Your Starknet Wallet</Text>
           </View>
@@ -199,9 +201,10 @@ export default function WalletSetupScreen() {
               </View>
             </View>
           </View>
-        </View>
+        </LinearGradient>
 
-        <View style={styles.instructionsCard}>
+        <LinearGradient
+      colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']} style={styles.instructionsCard}>
           <Text style={styles.instructionsTitle}>Setup Instructions</Text>
           <View style={styles.steps}>
             <Text style={styles.step}>
@@ -214,7 +217,7 @@ export default function WalletSetupScreen() {
               3. Start playing Bite Buddy!
             </Text>
           </View>
-        </View>
+        </LinearGradient>
 
         <View style={styles.actions}>
           {!walletInfo.isDeployed ? (
@@ -314,19 +317,13 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   walletCard: {
-    backgroundColor: Colors.primaryDark,
     borderRadius: 16,
     marginBottom: 20,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   cardHeader: {
-    backgroundColor: Colors.primary,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderTopLeftRadius: 14,
     borderTopRightRadius: 14,
     padding: 16,
@@ -346,17 +343,16 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontFamily: 'Blockblueprint',
-    color: '#B0B0B0',
+    color: '#fff',
     marginBottom: 8,
   },
   addressContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.background,
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   address: {
     flex: 1,
@@ -371,7 +367,7 @@ const styles = StyleSheet.create({
   copyHint: {
     fontSize: 12,
     fontFamily: 'Blockblueprint',
-    color: '#8A8A8A',
+    color: '#fff',
     marginTop: 4,
   },
   balanceSection: {
@@ -394,12 +390,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Blockblueprint',
   },
   instructionsCard: {
-    backgroundColor: Colors.primaryDark,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 12,
     padding: 20,
     marginBottom: 30,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   instructionsTitle: {
     fontSize: 16,
@@ -413,7 +408,7 @@ const styles = StyleSheet.create({
   step: {
     fontSize: 14,
     fontFamily: 'Blockblueprint',
-    color: '#E0E0E0',
+    color: '#fff',
     lineHeight: 20,
   },
   actions: {

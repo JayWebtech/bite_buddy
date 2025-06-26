@@ -1,3 +1,4 @@
+import GameAlert from '@/components/ui/GameAlert';
 import { MintPetPrompt } from '@/components/ui/MintPetPrompt';
 import { Colors, getRarityColor } from '@/constants/Colors';
 import { walletManager } from '@/utils/wallet';
@@ -5,7 +6,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, Dimensions, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, Linking, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -35,6 +36,18 @@ interface PetCollectionItem {
   rarity: 'Common' | 'Rare' | 'Epic' | 'Legendary';
 }
 
+interface GameAlertState {
+  visible: boolean;
+  title: string;
+  message: string;
+  icon: string;
+  buttons: Array<{
+    text: string;
+    onPress: () => void;
+    variant?: 'primary' | 'secondary' | 'success' | 'danger';
+  }>;
+}
+
 export default function CollectionScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'meals' | 'pets'>('meals');
@@ -42,6 +55,13 @@ export default function CollectionScreen() {
   const [petCollection, setPetCollection] = useState<PetCollectionItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [gameAlert, setGameAlert] = useState<GameAlertState>({
+    visible: false,
+    title: '',
+    message: '',
+    icon: '🎮',
+    buttons: []
+  });
 
   useEffect(() => {
     loadCollectionData();
@@ -162,13 +182,24 @@ export default function CollectionScreen() {
               for (let i = 0; i < hexString.length; i += 2) {
                 const hexPair = hexString.substr(i, 2);
                 const charCode = parseInt(hexPair, 16);
-                if (charCode > 0) { // Only add valid characters
+                // Only add printable ASCII characters (32-126) to avoid corruption
+                if (charCode >= 32 && charCode <= 126) {
                   decoded += String.fromCharCode(charCode);
                 }
               }
               ipfsUri += decoded;
             }
           }
+          
+          // Clean up and validate the IPFS URI
+          ipfsUri = ipfsUri.trim();
+          
+          // If the URI doesn't start with http, it might be malformed
+          if (ipfsUri && !ipfsUri.startsWith('http')) {
+            console.log('Invalid IPFS URI format:', ipfsUri);
+            ipfsUri = '';
+          }
+          
         } catch (error) {
           console.log('Error parsing IPFS URI:', error);
           ipfsUri = '';
@@ -254,14 +285,38 @@ export default function CollectionScreen() {
   };
 
   const handleMealNFTPress = (meal: MealNFT) => {
-    Alert.alert(
-      `Meal NFT #${meal.id}`,
-      `Hash: ${meal.meal_hash.substring(0, 10)}...\nRarity: ${meal.rarity}\n\nNutrition Profile:\n• Calories: ${meal.calories}\n• Protein: ${meal.protein}%\n• Carbs: ${meal.carbs}%\n• Fats: ${meal.fats}%\n• Vitamins: ${meal.vitamins}%\n• Minerals: ${meal.minerals}%\n• Fiber: ${meal.fiber}%\n\nIPFS: ${meal.ipfs_image_uri ? 'Available' : 'Not available'}`,
-      [
-        { text: 'View on IPFS', onPress: () => meal.ipfs_image_uri && console.log('Open IPFS:', meal.ipfs_image_uri) },
-        { text: 'OK' }
+    setGameAlert({
+      visible: true,
+      title: `🍽️ Meal NFT #${meal.id}`,
+      message: `Hash: ${meal.meal_hash.substring(0, 10)}...\nRarity: ${meal.rarity}\n\nNutrition Profile:\n• Calories: ${meal.calories}\n• Protein: ${meal.protein}%\n• Carbs: ${meal.carbs}%\n• Fats: ${meal.fats}%\n• Vitamins: ${meal.vitamins}%\n• Minerals: ${meal.minerals}%\n• Fiber: ${meal.fiber}%\n\nIPFS: ${meal.ipfs_image_uri ? 'Available' : 'Not available'}`,
+      icon: '🏆',
+      buttons: meal.ipfs_image_uri ? [
+        { 
+          text: 'View IPFS', 
+          onPress: async () => {
+            try {
+              await Linking.openURL(meal.ipfs_image_uri);
+              hideGameAlert();
+            } catch (error) {
+              console.log('Error opening IPFS URL:', error);
+              // Show error message but keep alert open
+            }
+          },
+          variant: 'primary' as const
+        },
+        { 
+          text: 'Close', 
+          onPress: hideGameAlert,
+          variant: 'secondary' as const
+        }
+      ] : [
+        { 
+          text: 'Close', 
+          onPress: hideGameAlert,
+          variant: 'primary' as const
+        }
       ]
-    );
+    });
   };
 
   const renderMealNFTs = () => (
@@ -326,23 +381,7 @@ export default function CollectionScreen() {
                     <Text style={styles.rarityText}>{meal.rarity}</Text>
                   </LinearGradient>
                   
-                  {/* Image container with glow */}
-                  <View style={styles.glassImageContainer}>
-                    {meal.ipfs_image_uri ? (
-                      <View style={styles.imageGlowWrapper}>
-                        <View style={[styles.imageGlow, { backgroundColor: getRarityColor(meal.rarity) }]} />
-                        <Image
-                          source={{ uri: meal.ipfs_image_uri }}
-                          style={styles.glassMealImage}
-                          contentFit="cover"
-                        />
-                      </View>
-                    ) : (
-                      <View style={styles.glassMealImagePlaceholder}>
-                        <Text style={styles.mealEmoji}>🍽️</Text>
-                      </View>
-                    )}
-                  </View>
+
                   
                   {/* Card content */}
                   <View style={styles.glassCardContent}>
@@ -416,7 +455,8 @@ export default function CollectionScreen() {
         </View>
       ) : (
         petCollection.map((pet) => (
-          <View key={pet.id} style={styles.petCard}>
+          <LinearGradient
+          colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']} key={pet.id} style={styles.petCard}>
             <View style={styles.petHeader}>
               <View style={styles.petInfo}>
                 <Text style={styles.petName}>{pet.name}</Text>
@@ -446,7 +486,7 @@ export default function CollectionScreen() {
                 </Text>
               </View>
             </View>
-          </View>
+          </LinearGradient>
         ))
       )}
     </View>
@@ -462,6 +502,20 @@ export default function CollectionScreen() {
       case 'F': return '#8B0000';
       default: return Colors.textSecondary;
     }
+  };
+
+  const showGameAlert = (title: string, message: string, icon: string, buttons: GameAlertState['buttons']) => {
+    setGameAlert({
+      visible: true,
+      title,
+      message,
+      icon,
+      buttons
+    });
+  };
+
+  const hideGameAlert = () => {
+    setGameAlert(prev => ({ ...prev, visible: false }));
   };
 
   return (
@@ -518,6 +572,16 @@ export default function CollectionScreen() {
             {activeTab === 'pets' && renderPetCollection()}
           </ScrollView>
         </View>
+
+        <GameAlert
+          visible={gameAlert.visible}
+          title={gameAlert.title}
+          message={gameAlert.message}
+          icon={gameAlert.icon}
+          iconType={gameAlert.icon === 'success' ? 'image' : 'emoji'}
+          buttons={gameAlert.buttons}
+          onClose={hideGameAlert}
+        />
       </View>
     </MintPetPrompt>
   );
@@ -571,7 +635,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 20,
     marginBottom: 20,
-    backgroundColor: Colors.cardBackground,
+    backgroundColor: Colors.background,
     borderRadius: 12,
     padding: 4,
   },
@@ -691,7 +755,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 16,
     width: (width - 60) / 2,
-    height: 280,
+    height: 'auto',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
@@ -748,7 +812,7 @@ const styles = StyleSheet.create({
   },
   glassImageContainer: {
     width: '100%',
-    height: 100,
+    height: 50,
     borderRadius: 12,
     marginBottom: 12,
     overflow: 'hidden',
@@ -789,6 +853,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   glassCardContent: {
+    marginTop: 30,
     flex: 1,
     alignItems: 'center',
   },
@@ -892,13 +957,12 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   petCard: {
-    backgroundColor: Colors.cardBackground,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     marginHorizontal: 20,
     marginBottom: 16,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   petHeader: {
     flexDirection: 'row',
