@@ -2,7 +2,7 @@ import GameAlert from '@/components/ui/GameAlert';
 import GameButton from '@/components/ui/GameButton';
 import { MintPetPrompt } from '@/components/ui/MintPetPrompt';
 import { Colors, getNutritionColor } from '@/constants/Colors';
-import { getEnergyDescription, getHappinessDescription, getHungerDescription, getNutritionGrade, mealAnalyzer, NutritionAnalysis } from '@/utils/mealAnalysis';
+import { getNutritionGrade, mealAnalyzer, NutritionAnalysis } from '@/utils/mealAnalysis';
 import { walletManager } from '@/utils/wallet';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
@@ -17,6 +17,7 @@ const { width, height } = Dimensions.get('window');
 interface ScanResult {
   analysis: NutritionAnalysis;
   imageUri: string;
+  imageBase64: string;
   isFromCamera: boolean;
 }
 
@@ -235,6 +236,7 @@ export default function ScanScreen() {
       const result: ScanResult = {
         analysis,
         imageUri,
+        imageBase64: base64Image,
         isFromCamera
       };
 
@@ -269,7 +271,26 @@ export default function ScanScreen() {
     try {
       setIsFeeding(true);
       
-      const mealData = mealAnalyzer.convertToMealData(scanResult.analysis);
+      // Get pet data to get the pet ID
+      const petData = await walletManager.getPet();
+      console.log('petData', petData);
+      if (!petData) {
+        showGameAlert(
+          'Pet Not Found',
+          'Could not find your pet data. Please make sure your pet is minted!',
+          '🐾',
+          [{ text: 'OK', onPress: () => {}, variant: 'primary' }]
+        );
+        return;
+      }
+
+      // Convert analysis to contract meal data with IPFS upload
+      const contractMealData = await mealAnalyzer.convertToContractMealData(
+        scanResult.analysis,
+        scanResult.imageBase64,
+        parseInt(petData.id)
+      );
+      
       const walletInfo = await walletManager.getWalletInfo();
       
       if (!walletInfo?.OZcontractAddress) {
@@ -283,35 +304,58 @@ export default function ScanScreen() {
       }
 
       // Call the contract to feed the pet
-      await walletManager.feedPet(mealData);
+      const success = await walletManager.feedPet(contractMealData);
       
-      // Show success with detailed stats
-      const { analysis } = scanResult;
-      showGameAlert(
-        '🎉 Feeding Successful!',
-        `Your pet loved the ${analysis.foodName}!\n\n` +
-        `Energy Boost: +${analysis.energyValue}\n` +
-        `Hunger Satisfied: +${analysis.hungerValue}\n` +
-        `Happiness Gained: +${analysis.happinessValue}\n\n` +
-        `Grade: ${getNutritionGrade(analysis)} • Confidence: ${Math.round(analysis.confidence * 100)}%`,
-        'success',
-        [
-          {
-            text: 'View Pet',
-            onPress: () => router.push('/(game)/(tabs)/home'),
-            variant: 'success'
-          },
-        ]
-      );
+      if (success) {
+        // Show success with detailed stats
+        const { analysis } = scanResult;
+        showGameAlert(
+          '🎉 Feeding Successful!',
+          `Your pet loved the ${analysis.foodName}!\n\n` +
+          `Nutrition Details:\n` +
+          `• Calories: ${analysis.calories}\n` +
+          `• Protein: ${analysis.protein}%\n` +
+          `• Carbs: ${analysis.carbs}%\n` +
+          `• Fats: ${analysis.fats}%\n` +
+          `• Vitamins: ${analysis.vitamins}%\n` +
+          `• Minerals: ${analysis.minerals}%\n` +
+          `• Fiber: ${analysis.fiber}%\n\n` +
+          `Grade: ${getNutritionGrade(analysis)} • Confidence: ${Math.round(analysis.confidence * 100)}%`,
+          'success',
+          [
+            {
+              text: 'View Pet',
+              onPress: () => router.push('/(game)/(tabs)/home'),
+              variant: 'success'
+            },
+          ]
+        );
+      } else {
+        showGameAlert(
+          'Feeding Failed',
+          'Transaction failed. Please try again later!',
+          '😵',
+          [{ text: 'Try Again', onPress: () => {}, variant: 'primary' }]
+        );
+      }
       
     } catch (error) {
       console.error('Error feeding pet:', error);
-      showGameAlert(
-        'Feeding Failed',
-        'Your pet is too full right now or there was a network issue. Please try again later!',
-        '😵',
-        [{ text: 'Try Again', onPress: () => {}, variant: 'primary' }]
-      );
+      if (error instanceof Error && error.message.includes('IPFS')) {
+        showGameAlert(
+          'Upload Failed',
+          'Failed to upload image to IPFS. Please check your internet connection and try again!',
+          '🌐',
+          [{ text: 'Try Again', onPress: () => {}, variant: 'primary' }]
+        );
+      } else {
+        showGameAlert(
+          'Feeding Failed',
+          'Your pet is too full right now or there was a network issue. Please try again later!',
+          '😵',
+          [{ text: 'Try Again', onPress: () => {}, variant: 'primary' }]
+        );
+      }
     } finally {
       setIsFeeding(false);
     }
@@ -552,30 +596,68 @@ export default function ScanScreen() {
                 <View style={styles.statsContainer}>
                   <View style={styles.statRow}>
                     <View style={styles.statCard}>
-                      <Text style={styles.statEmoji}>⚡</Text>
-                      <Text style={styles.statLabel}>Energy</Text>
-                      <Text style={styles.statValue}>{analysis.energyValue}</Text>
+                      <Text style={styles.statEmoji}>🔥</Text>
+                      <Text style={styles.statLabel}>Calories</Text>
+                      <Text style={styles.statValue}>{analysis.calories}</Text>
                       <Text style={styles.statDescription}>
-                        {getEnergyDescription(analysis.energyValue)}
+                        {analysis.calories > 300 ? 'High Energy' : analysis.calories > 150 ? 'Moderate' : 'Light'}
                       </Text>
                     </View>
                     <View style={styles.statCard}>
-                      <Text style={styles.statEmoji}>🍽️</Text>
-                      <Text style={styles.statLabel}>Hunger</Text>
-                      <Text style={styles.statValue}>{analysis.hungerValue}</Text>
+                      <Text style={styles.statEmoji}>💪</Text>
+                      <Text style={styles.statLabel}>Protein</Text>
+                      <Text style={styles.statValue}>{analysis.protein}%</Text>
                       <Text style={styles.statDescription}>
-                        {getHungerDescription(analysis.hungerValue)}
+                        {analysis.protein > 60 ? 'Very High' : analysis.protein > 30 ? 'High' : analysis.protein > 15 ? 'Moderate' : 'Low'}
                       </Text>
                     </View>
                   </View>
 
                   <View style={styles.statRow}>
                     <View style={styles.statCard}>
-                      <Text style={styles.statEmoji}>😊</Text>
-                      <Text style={styles.statLabel}>Happiness</Text>
-                      <Text style={styles.statValue}>{analysis.happinessValue}</Text>
+                      <Text style={styles.statEmoji}>🌾</Text>
+                      <Text style={styles.statLabel}>Carbs</Text>
+                      <Text style={styles.statValue}>{analysis.carbs}%</Text>
                       <Text style={styles.statDescription}>
-                        {getHappinessDescription(analysis.happinessValue)}
+                        {analysis.carbs > 60 ? 'Very High' : analysis.carbs > 30 ? 'High' : analysis.carbs > 15 ? 'Moderate' : 'Low'}
+                      </Text>
+                    </View>
+                    <View style={styles.statCard}>
+                      <Text style={styles.statEmoji}>🥑</Text>
+                      <Text style={styles.statLabel}>Fats</Text>
+                      <Text style={styles.statValue}>{analysis.fats}%</Text>
+                      <Text style={styles.statDescription}>
+                        {analysis.fats > 40 ? 'Very High' : analysis.fats > 20 ? 'High' : analysis.fats > 10 ? 'Moderate' : 'Low'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.statRow}>
+                    <View style={styles.statCard}>
+                      <Text style={styles.statEmoji}>🍊</Text>
+                      <Text style={styles.statLabel}>Vitamins</Text>
+                      <Text style={styles.statValue}>{analysis.vitamins}%</Text>
+                      <Text style={styles.statDescription}>
+                        {analysis.vitamins > 70 ? 'Excellent' : analysis.vitamins > 40 ? 'Good' : analysis.vitamins > 20 ? 'Fair' : 'Poor'}
+                      </Text>
+                    </View>
+                    <View style={styles.statCard}>
+                      <Text style={styles.statEmoji}>⚡</Text>
+                      <Text style={styles.statLabel}>Minerals</Text>
+                      <Text style={styles.statValue}>{analysis.minerals}%</Text>
+                      <Text style={styles.statDescription}>
+                        {analysis.minerals > 70 ? 'Excellent' : analysis.minerals > 40 ? 'Good' : analysis.minerals > 20 ? 'Fair' : 'Poor'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.statRow}>
+                    <View style={styles.statCard}>
+                      <Text style={styles.statEmoji}>🌿</Text>
+                      <Text style={styles.statLabel}>Fiber</Text>
+                      <Text style={styles.statValue}>{analysis.fiber}%</Text>
+                      <Text style={styles.statDescription}>
+                        {analysis.fiber > 60 ? 'Very High' : analysis.fiber > 30 ? 'High' : analysis.fiber > 15 ? 'Moderate' : 'Low'}
                       </Text>
                     </View>
                     <View style={styles.statCard}>

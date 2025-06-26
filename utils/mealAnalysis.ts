@@ -20,6 +20,14 @@ export interface NutritionAnalysis {
     noPixelation: boolean;
   };
   validationReason?: string; // NEW: reason if not real food
+  // NEW: Contract-specific nutrients
+  calories: number;       // u16 (0-65535)
+  protein: number;        // u8 (0-255)
+  carbs: number;         // u8 (0-255)
+  fats: number;          // u8 (0-255)
+  vitamins: number;      // u8 (0-255)
+  minerals: number;      // u8 (0-255)
+  fiber: number;         // u8 (0-255)
 }
 
 export interface MealData {
@@ -29,17 +37,104 @@ export interface MealData {
   timestamp: number;
 }
 
+// NEW: Contract-compatible meal data
+export interface ContractMealData {
+  pet_id: number;
+  meal_hash: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+  vitamins: number;
+  minerals: number;
+  fiber: number;
+  ipfs_image_uri: string;
+}
+
 const MCP_SERVER_URL = 'http://localhost:3001'; // Your MCP server URL
 const BACKEND_URL = 'http://localhost:3000';    // Your backend URL
 
 class MealAnalyzer {
   private apiKey: string;
   private baseUrl = 'https://api.anthropic.com/v1/messages';
+  private pinataApiKey: string;
+  private pinataJwt: string;
 
   constructor() {
     this.apiKey = Constants.expoConfig?.extra?.MCP_PRIVATE_KEY || '';
+    this.pinataApiKey = Constants.expoConfig?.extra?.PINATA_CLOUD_API_KEY || '';
+    this.pinataJwt = Constants.expoConfig?.extra?.PINATA_CLOUD_JWT || '';
+    
     if (!this.apiKey) {
       throw new Error('MCP_PRIVATE_KEY not found in environment variables');
+    }
+    if (!this.pinataApiKey || !this.pinataJwt) {
+      throw new Error('PINATA credentials not found in environment variables');
+    }
+  }
+
+  /**
+   * Generate a 30-character meal hash
+   */
+  generateMealHash(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < 30; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
+
+  /**
+   * Upload image to IPFS via Pinata
+   */
+  async uploadToIPFS(imageBase64: string): Promise<string> {
+    try {
+      // Create FormData for React Native
+      const formData = new FormData();
+      
+      // For React Native, we can append the base64 data directly as a file
+      formData.append('file', {
+        uri: `data:image/jpeg;base64,${imageBase64}`,
+        type: 'image/jpeg',
+        name: `meal_${Date.now()}.jpg`,
+      } as any);
+      
+      const metadata = JSON.stringify({
+        name: `BiteBuddy Meal ${Date.now()}`,
+        keyvalues: {
+          app: 'BiteBuddy',
+          type: 'meal_image',
+          timestamp: Date.now().toString()
+        }
+      });
+      formData.append('pinataMetadata', metadata);
+
+      const options = JSON.stringify({
+        cidVersion: 0,
+      });
+      formData.append('pinataOptions', options);
+
+      const response = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.pinataJwt}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('IPFS upload error response:', errorText);
+        throw new Error(`IPFS upload failed: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('IPFS upload successful:', result);
+      return `https://gateway.pinata.cloud/ipfs/${result.IpfsHash}`;
+    } catch (error) {
+      console.error('Error uploading to IPFS:', error);
+      throw new Error('Failed to upload image to IPFS');
     }
   }
 
@@ -121,7 +216,14 @@ Provide analysis in the following JSON format:
     "noScreenGlare": true/false,
     "noPixelation": true/false
   },
-  "validationReason": "explanation if not real food"
+  "validationReason": "explanation if not real food",
+  "calories": 0-500,
+  "protein": 0-100,
+  "carbs": 0-100,
+  "fats": 0-100,
+  "vitamins": 0-100,
+  "minerals": 0-100,
+  "fiber": 0-100
 }
 
 VALIDATION CRITERIA:
@@ -146,12 +248,21 @@ Scoring Guidelines:
 - healthScore: Overall nutritional value (vegetables/fruits = high health)
 - confidence: Your confidence in correctly identifying the food (reduce if validation fails)
 
+Nutrient Guidelines (estimate realistic values):
+- calories: Estimated calories per 100g (0-500)
+- protein: Protein content percentage (0-100, where 100 = very high protein like meat)
+- carbs: Carbohydrate content percentage (0-100, where 100 = pure carbs like sugar)
+- fats: Fat content percentage (0-100, where 100 = pure fat like oil)
+- vitamins: Vitamin richness (0-100, where 100 = vitamin-rich like leafy greens)
+- minerals: Mineral content (0-100, where 100 = mineral-rich like nuts/seeds)
+- fiber: Fiber content (0-100, where 100 = very high fiber like beans)
+
 Consider:
-- Fresh fruits/vegetables: High health, moderate happiness
-- Junk food: High happiness, low health, high energy
-- Protein sources: High hunger value, moderate energy
-- Sweets: High energy, high happiness, low health
-- Healthy meals: Balanced across all metrics
+- Fresh fruits/vegetables: High vitamins, minerals, fiber, low calories/fats
+- Junk food: High calories, carbs, fats, low vitamins/minerals/fiber
+- Protein sources: High protein, moderate calories, low carbs
+- Nuts/seeds: High fats, protein, minerals, moderate calories
+- Grains: High carbs, moderate fiber, low fats
 
 Return ONLY the JSON object, no additional text.`;
   }
@@ -180,12 +291,48 @@ Return ONLY the JSON object, no additional text.`;
         confidence: Math.max(0, Math.min(1, parsed.confidence || 0.5)),
         isRealFood: parsed.isRealFood,
         validationFlags: parsed.validationFlags,
-        validationReason: parsed.validationReason
+        validationReason: parsed.validationReason,
+        // Contract-specific nutrients
+        calories: Math.max(0, Math.min(500, parsed.calories || 100)),
+        protein: Math.max(0, Math.min(100, parsed.protein || 20)),
+        carbs: Math.max(0, Math.min(100, parsed.carbs || 30)),
+        fats: Math.max(0, Math.min(100, parsed.fats || 15)),
+        vitamins: Math.max(0, Math.min(100, parsed.vitamins || 40)),
+        minerals: Math.max(0, Math.min(100, parsed.minerals || 30)),
+        fiber: Math.max(0, Math.min(100, parsed.fiber || 25)),
       };
     } catch (error) {
       console.error('Error parsing analysis response:', error);
       return this.getDefaultAnalysis();
     }
+  }
+
+  /**
+   * Convert nutrition analysis to contract-compatible meal data
+   */
+  async convertToContractMealData(
+    analysis: NutritionAnalysis, 
+    imageBase64: string, 
+    petId: number
+  ): Promise<ContractMealData> {
+    // Upload image to IPFS
+    const ipfsUri = await this.uploadToIPFS(imageBase64);
+    
+    // Generate meal hash
+    const mealHash = this.generateMealHash();
+    
+    return {
+      pet_id: petId,
+      meal_hash: mealHash,
+      calories: analysis.calories,
+      protein: analysis.protein,
+      carbs: analysis.carbs,
+      fats: analysis.fats,
+      vitamins: analysis.vitamins,
+      minerals: analysis.minerals,
+      fiber: analysis.fiber,
+      ipfs_image_uri: ipfsUri,
+    };
   }
 
   /**
@@ -226,7 +373,14 @@ Return ONLY the JSON object, no additional text.`;
       description: 'Could not analyze food properly',
       confidence: 0.1,
       isRealFood: false,
-      validationReason: 'Analysis failed - could not determine if this is real food'
+      validationReason: 'Analysis failed - could not determine if this is real food',
+      calories: 100,
+      protein: 20,
+      carbs: 30,
+      fats: 15,
+      vitamins: 40,
+      minerals: 30,
+      fiber: 25,
     };
   }
 

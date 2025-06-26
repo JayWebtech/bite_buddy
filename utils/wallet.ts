@@ -7,13 +7,15 @@ import * as SecureStore from 'expo-secure-store';
 import 'react-native-get-random-values';
 import {
   Account,
+  byteArray,
   Call,
   CallData,
   constants,
   ec,
   GetTransactionReceiptResponse,
   hash,
-  RpcProvider
+  RpcProvider,
+  shortString
 } from 'starknet';
 
 export interface WalletInfo {
@@ -631,30 +633,41 @@ export class BiteBuddyWallet {
         throw new Error('No wallet address found');
       }
 
+      console.log('Feeding pet with meal data:', mealData);
+
+      console.log("meal data type", typeof mealData.calories, typeof mealData.protein, typeof mealData.carbs, typeof mealData.fats, typeof mealData.vitamins, typeof mealData.minerals, typeof mealData.fiber, typeof mealData.ipfs_image_uri, typeof mealData.meal_hash, typeof mealData.pet_id, typeof mealData.ipfs_image_uri, typeof mealData.pet_id)
+
       const calls: Call[] = [
         {
           entrypoint: 'scan_and_feed_meal',
           contractAddress: Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR,
           calldata: [
-            mealData.pet_id,
-            mealData.meal_hash,
-            mealData.calories,
-            mealData.protein,
-            mealData.carbs,
-            mealData.fats,
-            mealData.vitamins,
-            mealData.minerals,
-            mealData.fiber,
-            mealData.ipfs_image_uri,
+            mealData.pet_id,           // pet_id: u256
+            shortString.encodeShortString(mealData.meal_hash),                   // meal_hash: felt252
+            mealData.calories,         // calories: u16
+            mealData.protein,          // protein: u8
+            mealData.carbs,            // carbs: u8
+            mealData.fats,             // fats: u8
+            mealData.vitamins,         // vitamins: u8
+            mealData.minerals,         // minerals: u8
+            mealData.fiber,            // fiber: u8
+            byteArray.byteArrayFromString(mealData.ipfs_image_uri)
           ],
         },
       ];
+      
+
+      console.log('Contract call data:', calls[0].calldata);
 
       const { transaction_hash: txH } = await account.execute(calls, {
         version: 3,
       });
 
+      console.log('Transaction hash:', txH);
+
       const txR = await this.provider.waitForTransaction(txH);
+      console.log('Transaction result:', txR);
+      
       return txR.isSuccess();
     } catch (error) {
       console.log('Error feeding pet:', error);
