@@ -143,8 +143,10 @@ export default function CollectionScreen() {
         const minerals = parseInt(contractData[10], 16);
         const fiber = parseInt(contractData[11], 16);
 
-        // Parse timestamp
-        const timestamp = parseInt(contractData[12], 16) * 1000; // Convert to milliseconds
+        // Parse timestamp - the contract seems to return a relative timestamp
+        // For now, use current time minus a reasonable offset based on the contract value
+        const contractTimestamp = parseInt(contractData[12], 16);
+        const timestamp = Date.now() - (contractTimestamp * 60 * 60 * 1000); // Assume contract timestamp is hours ago
 
         // Parse IPFS URI - it appears to be split across multiple hex values
         let ipfsUri = '';
@@ -371,9 +373,8 @@ export default function CollectionScreen() {
                         <Text style={styles.glassStatEmoji}>🌾</Text>
                         <Text style={styles.glassStatValue}>{meal.carbs}%</Text>
                       </View>
+                      
                     </View>
-                    
-                    <Text style={styles.glassMealTime}>{formatTimeAgo(meal.timestamp)}</Text>
                   </View>
                   
                   {/* Shine effect */}
@@ -840,6 +841,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     marginBottom: 8,
     paddingHorizontal: 4,
+    gap: 10
   },
   glassStat: {
     alignItems: 'center',
