@@ -1,3 +1,4 @@
+import { GameAudio } from '@/utils/soundManager';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -174,7 +175,10 @@ export default function MealScanScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => {
+          GameAudio.buttonPress();
+          router.back();
+        }} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Meal Scanner</Text>
@@ -286,10 +290,16 @@ export default function MealScanScreen() {
           </View>
 
           <View style={styles.resultActions}>
-            <TouchableOpacity style={styles.retryButton} onPress={retryPhoto}>
+            <TouchableOpacity style={styles.retryButton} onPress={() => {
+              GameAudio.buttonPress();
+              retryPhoto();
+            }}>
               <Text style={styles.retryButtonText}>📷 Retry</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.confirmButton} onPress={confirmScan}>
+            <TouchableOpacity style={styles.confirmButton} onPress={() => {
+              GameAudio.buttonPress();
+              confirmScan();
+            }}>
               <Text style={styles.confirmButtonText}>✓ Confirm</Text>
             </TouchableOpacity>
           </View>
@@ -299,7 +309,10 @@ export default function MealScanScreen() {
       {/* Scan Button */}
       {!isScanning && !hasScanned && (
         <View style={styles.scanButtonContainer}>
-          <TouchableOpacity style={styles.scanButton} onPress={startScan}>
+          <TouchableOpacity style={styles.scanButton} onPress={() => {
+            GameAudio.buttonPress();
+            startScan();
+          }}>
             <Text style={styles.scanButtonText}>📸</Text>
           </TouchableOpacity>
           <Text style={styles.scanButtonLabel}>Tap to Scan</Text>

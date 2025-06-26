@@ -3,6 +3,7 @@ import GameButton from '@/components/ui/GameButton';
 import { MintPetPrompt } from '@/components/ui/MintPetPrompt';
 import { Colors, getNutritionColor } from '@/constants/Colors';
 import { getNutritionGrade, mealAnalyzer, NutritionAnalysis } from '@/utils/mealAnalysis';
+import { GameAudio } from '@/utils/soundManager';
 import { walletManager } from '@/utils/wallet';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
@@ -243,6 +244,9 @@ export default function ScanScreen() {
       setScanResult(result);
       setIsAnalyzing(false);
 
+      // Play scan success sound
+      GameAudio.scanSuccess();
+
       // Animate result slide in
       Animated.timing(slideAnim, {
         toValue: 0,
@@ -307,6 +311,10 @@ export default function ScanScreen() {
       const success = await walletManager.feedPet(contractMealData);
       
       if (success) {
+        // Play meal completion and pet happy sounds
+        GameAudio.mealComplete();
+        GameAudio.petHappy();
+        
         // Show success with detailed stats
         const { analysis } = scanResult;
         showGameAlert(
@@ -324,6 +332,7 @@ export default function ScanScreen() {
           ]
         );
       } else {
+        GameAudio.error();
         showGameAlert(
           'Feeding Failed',
           'Transaction failed. Please try again later!',
@@ -550,7 +559,10 @@ export default function ScanScreen() {
         >
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.resultHeader}>
-              <TouchableOpacity onPress={resetScan} style={styles.backButton}>
+              <TouchableOpacity onPress={() => {
+                GameAudio.buttonPress();
+                resetScan();
+              }} style={styles.backButton}>
                 <Text style={styles.backButtonText}>← Back</Text>
               </TouchableOpacity>
               <Text style={styles.resultTitle}>Scan Results</Text>

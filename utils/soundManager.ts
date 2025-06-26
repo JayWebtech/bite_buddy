@@ -69,17 +69,88 @@ class SoundManager {
   // Load all game sounds
   async loadSounds() {
     try {
-      // For now, we'll use system sounds and synthesized audio
-      // In production, you'd load actual sound files from assets/sounds/
+      console.log('Loading actual sound files...');
       
-      // Note: Since we don't have actual sound files yet, 
-      // this will be a placeholder implementation
-      console.log('Sound loading initialized - ready for actual sound files');
+      // Load available sound files
+      this.sounds.buttonClick = await Audio.Sound.createAsync(
+        require('@/assets/sounds/click.wav')
+      );
       
-      // Example of how you'd load actual sound files:
-      // this.sounds.buttonClick = await Audio.Sound.createAsync(
-      //   require('@/assets/sounds/button-click.mp3')
-      // );
+      this.sounds.petHappy = await Audio.Sound.createAsync(
+        require('@/assets/sounds/pet_happy.wav')
+      );
+      
+      this.sounds.battleLose = await Audio.Sound.createAsync(
+        require('@/assets/sounds/game_lose.wav')
+      );
+      
+      this.sounds.battleWin = await Audio.Sound.createAsync(
+        require('@/assets/sounds/pet_fed_game_won.wav')
+      );
+      
+      // Battle background music (will be used for looping)
+      this.sounds.backgroundMusic = await Audio.Sound.createAsync(
+        require('@/assets/sounds/battle_background.wav')
+      );
+      
+      // Use pet_happy for multiple pet interactions
+      this.sounds.petEating = await Audio.Sound.createAsync(
+        require('@/assets/sounds/pet_happy.wav')
+      );
+      
+      // Use click sound for multiple UI interactions
+      this.sounds.tabSwitch = await Audio.Sound.createAsync(
+        require('@/assets/sounds/click.wav')
+      );
+      
+      this.sounds.success = await Audio.Sound.createAsync(
+        require('@/assets/sounds/pet_fed_game_won.wav')
+      );
+      
+      // Map additional battle sounds using available files as placeholders
+      this.sounds.cardPlay = await Audio.Sound.createAsync(
+        require('@/assets/sounds/click.wav')
+      );
+      
+      this.sounds.attack = await Audio.Sound.createAsync(
+        require('@/assets/sounds/click.wav')
+      );
+      
+      this.sounds.heal = await Audio.Sound.createAsync(
+        require('@/assets/sounds/pet_happy.wav')
+      );
+      
+      this.sounds.shield = await Audio.Sound.createAsync(
+        require('@/assets/sounds/click.wav')
+      );
+      
+      this.sounds.battleStart = await Audio.Sound.createAsync(
+        require('@/assets/sounds/pet_fed_game_won.wav')
+      );
+      
+      // Additional feeding/scanning sounds
+      this.sounds.scanSuccess = await Audio.Sound.createAsync(
+        require('@/assets/sounds/click.wav')
+      );
+      
+      this.sounds.mealComplete = await Audio.Sound.createAsync(
+        require('@/assets/sounds/pet_fed_game_won.wav')
+      );
+      
+      this.sounds.nutritionGain = await Audio.Sound.createAsync(
+        require('@/assets/sounds/pet_happy.wav')
+      );
+      
+      // Error sound using game_lose
+      this.sounds.error = await Audio.Sound.createAsync(
+        require('@/assets/sounds/game_lose.wav')
+      );
+      
+      this.sounds.notification = await Audio.Sound.createAsync(
+        require('@/assets/sounds/click.wav')
+      );
+      
+      console.log('✅ Sound files loaded successfully');
       
     } catch (error) {
       console.warn('Failed to load sounds:', error);
@@ -91,9 +162,14 @@ class SoundManager {
     if (!this.isEnabled) return;
 
     try {
-      // For now, we'll use haptic feedback as audio placeholders
-      // and log what sound would be played
       console.log(`🔊 Playing sound: ${soundName}`);
+      
+      // Play actual sound file if available
+      const sound = this.sounds[soundName];
+      if (sound?.sound) {
+        await sound.sound.replayAsync();
+        await sound.sound.setVolumeAsync(config.volume || this.effectsVolume);
+      }
       
       // Add appropriate haptic feedback based on sound type
       switch (soundName) {
@@ -117,6 +193,8 @@ class SoundManager {
         case 'success':
         case 'scanSuccess':
         case 'mealComplete':
+        case 'petHappy':
+        case 'petEating':
           await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           break;
           
@@ -132,15 +210,6 @@ class SoundManager {
         default:
           await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
-
-      // When you have actual sound files, uncomment this:
-      /*
-      const sound = this.sounds[soundName];
-      if (sound?.sound) {
-        await sound.sound.replayAsync();
-        await sound.sound.setVolumeAsync(config.volume || this.effectsVolume);
-      }
-      */
       
     } catch (error) {
       console.warn(`Failed to play sound ${soundName}:`, error);
@@ -153,18 +222,20 @@ class SoundManager {
 
     try {
       console.log(`🎵 Starting background music: ${musicName}`);
-      this.isBackgroundMusicPlaying = true;
       
-      // When you have actual music files, implement here:
-      /*
       const music = this.sounds[musicName];
       if (music?.sound) {
         this.backgroundMusic = music.sound;
-        await this.backgroundMusic.setIsLoopingAsync(true);
-        await this.backgroundMusic.setVolumeAsync(this.musicVolume);
-        await this.backgroundMusic.playAsync();
+        if (this.backgroundMusic) {
+          await this.backgroundMusic.setIsLoopingAsync(true); // Enable looping
+          await this.backgroundMusic.setVolumeAsync(this.musicVolume);
+          await this.backgroundMusic.playAsync();
+          this.isBackgroundMusicPlaying = true;
+          console.log(`🎵 Background music started and looping: ${musicName}`);
+        }
+      } else {
+        console.warn(`Background music file not found: ${musicName}`);
       }
-      */
     } catch (error) {
       console.warn('Failed to play background music:', error);
       this.isBackgroundMusicPlaying = false;

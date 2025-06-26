@@ -2,6 +2,7 @@ import GameAlert from '@/components/ui/GameAlert';
 import GameButton from '@/components/ui/GameButton';
 import { MintPetPrompt } from '@/components/ui/MintPetPrompt';
 import { Colors } from '@/constants/Colors';
+import { GameAudio } from '@/utils/soundManager';
 import { walletManager } from '@/utils/wallet';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -319,9 +320,14 @@ export default function BattleScreen() {
   const confirmBattle = async (opponent: Opponent) => {
     hideGameAlert();
     
-    try {
-      setIsLoading(true);
-      const battleId = await initiateBattleContract(playerPet!.id, opponent!.id.toString() || '2');
+          try {
+        setIsLoading(true);
+        
+        // Play battle start sound and background music
+        GameAudio.battleStart();
+        GameAudio.startBackgroundMusic();
+        
+        const battleId = await initiateBattleContract(playerPet!.id, opponent!.id.toString() || '2');
       
       if (battleId) {
         setCurrentBattleId(battleId);
@@ -350,6 +356,7 @@ export default function BattleScreen() {
       }
     } catch (error) {
       console.error('Error starting battle:', error);
+      GameAudio.error();
       showGameAlert(
         'Battle Failed',
         'Could not start the battle. Please try again later.',
@@ -385,6 +392,7 @@ export default function BattleScreen() {
 
   const useCard = async (card: BattleCard) => {
     if (playerEnergy < card.energyCost) {
+      GameAudio.error();
       showGameAlert(
         'Not Enough Energy!',
         `You need ${card.energyCost} energy to use ${card.name}. Current energy: ${playerEnergy}`,
@@ -399,8 +407,27 @@ export default function BattleScreen() {
       return;
     }
 
-    // Add haptic feedback
+    // Add haptic feedback and sound effects
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    
+    // Play card-specific sound
+    switch (card.type) {
+      case 'attack':
+        GameAudio.attack();
+        break;
+      case 'defense':
+        GameAudio.shield();
+        break;
+      case 'special':
+        if (card.name === 'Heal') {
+          GameAudio.heal();
+        } else {
+          GameAudio.cardPlay();
+        }
+        break;
+      default:
+        GameAudio.cardPlay();
+    }
     
     // Set processing state
     setProcessingMove(true);
@@ -461,8 +488,9 @@ export default function BattleScreen() {
   const aiTurn = () => {
     if (!selectedOpponent) return;
     
-    // Add haptic feedback for AI move
+    // Add haptic feedback and sound for AI move
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    GameAudio.attack(); // AI attack sound
     
     const damage = Math.max(1, selectedOpponent.stats.attack - 10);
     setPlayerHealth(prev => Math.max(0, prev - damage));
@@ -535,6 +563,10 @@ export default function BattleScreen() {
 
   const showBattleResult = (playerWon: boolean, contractWinner?: string) => {
     if (playerWon) {
+      // Play victory sound and stop background music
+      GameAudio.battleWin();
+      GameAudio.stopBackgroundMusic();
+      
       showGameAlert(
         '🎉 Victory!',
         `Your ${playerPet?.name} defeated ${selectedOpponent?.name}!\n\nMoves used: ${storedMoves.length}\nTransaction submitted to contract!\n\nRewards:\n💰 ${selectedOpponent?.reward} coins\n⭐ Experience gained`,
@@ -544,6 +576,10 @@ export default function BattleScreen() {
         ]
       );
     } else {
+      // Play defeat sound and stop background music
+      GameAudio.battleLose();
+      GameAudio.stopBackgroundMusic();
+      
       showGameAlert(
         '💀 Defeat!',
         `Your ${playerPet?.name} was defeated by ${selectedOpponent?.name}.\n\nMoves used: ${storedMoves.length}\nTransaction submitted to contract!\n\nTip: Feed your pet healthy meals to increase strength!`,
@@ -564,6 +600,9 @@ export default function BattleScreen() {
     setStoredMoves([]);
     hideGameAlert();
     loadPlayerPet();
+    
+    // Stop background music when battle ends
+    GameAudio.stopBackgroundMusic();
   };
 
   const restartBattle = () => {
@@ -675,7 +714,10 @@ export default function BattleScreen() {
                       playerEnergy < card.energyCost && styles.cardDisabled,
                       index === 4 ? styles.cardFullWidth : (index % 2 === 0 ? styles.cardLeft : styles.cardRight)
                     ]}
-                    onPress={() => useCard(card)}
+                    onPress={() => {
+                      GameAudio.buttonPress();
+                      useCard(card);
+                    }}
                     disabled={playerEnergy < card.energyCost || isLoading || processingMove || submittingBattle}
                   >
                     <LinearGradient
@@ -796,7 +838,10 @@ export default function BattleScreen() {
                 <TouchableOpacity
                   key={opponent.id}
                   style={styles.opponentCard}
-                  onPress={() => startBattle(opponent)}
+                  onPress={() => {
+                    GameAudio.buttonPress();
+                    startBattle(opponent);
+                  }}
                   disabled={isLoading}
                 >
                   <LinearGradient

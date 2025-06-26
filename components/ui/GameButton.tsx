@@ -1,3 +1,4 @@
+import { GameAudio } from '@/utils/soundManager';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { StyleSheet, Text, TextStyle, TouchableOpacity, ViewStyle } from 'react-native';
@@ -55,10 +56,17 @@ export default function GameButton({
     }
   };
 
+  const handlePress = () => {
+    if (!disabled) {
+      GameAudio.buttonPress();
+      onPress();
+    }
+  };
+
   return (
     <TouchableOpacity
       style={[styles.buttonContainer, style]}
-      onPress={onPress}
+      onPress={handlePress}
       disabled={disabled}
       activeOpacity={0.8}
     >

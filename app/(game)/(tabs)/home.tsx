@@ -2,6 +2,7 @@ import GameAlert from '@/components/ui/GameAlert';
 import GameButton from '@/components/ui/GameButton';
 import { MintPetPrompt } from '@/components/ui/MintPetPrompt';
 import { Colors, getStatColor } from '@/constants/Colors';
+import { GameAudio } from '@/utils/soundManager';
 import { walletManager } from '@/utils/wallet';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -95,6 +96,9 @@ const InteractivePet: React.FC<{
     
     setIsInteracting(true);
     
+    // Play pet happy sound
+    GameAudio.petHappy();
+    
     // Show interaction feedback
     showInteractionFeedback('❤️', locationX, locationY);
     
@@ -129,6 +133,9 @@ const InteractivePet: React.FC<{
     const { locationX, locationY } = event.nativeEvent;
     
     setIsInteracting(true);
+    
+    // Play pet happy sound for playing interaction
+    GameAudio.petHappy();
     
     showInteractionFeedback('😆', locationX, locationY);
     
@@ -168,6 +175,9 @@ const InteractivePet: React.FC<{
     const { locationX, locationY } = event.nativeEvent;
     
     setIsInteracting(true);
+    
+    // Play pet eating sound
+    GameAudio.petEating();
     
     showInteractionFeedback('🍽️', locationX, locationY);
     
@@ -455,6 +465,8 @@ export default function HomeScreen() {
 
   // Refresh button handler
   const handleRefresh = () => {
+    // Play button press sound
+    GameAudio.buttonPress();
     fetchPetData();
   };
 

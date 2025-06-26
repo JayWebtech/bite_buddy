@@ -1,6 +1,7 @@
 import GameAlert from '@/components/ui/GameAlert';
 import { MintPetPrompt } from '@/components/ui/MintPetPrompt';
 import { Colors, getRarityColor } from '@/constants/Colors';
+import { GameAudio } from '@/utils/soundManager';
 import { walletManager } from '@/utils/wallet';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -374,7 +375,10 @@ export default function CollectionScreen() {
             </Text>
             <TouchableOpacity 
               style={styles.glassEmptyButton}
-              onPress={() => router.push('/(game)/(tabs)/scan')}
+              onPress={() => {
+                GameAudio.buttonPress();
+                router.push('/(game)/(tabs)/scan');
+              }}
             >
               <LinearGradient
                 colors={[Colors.primary, '#00A868']}
@@ -397,7 +401,10 @@ export default function CollectionScreen() {
               <TouchableOpacity
                 key={meal.id}
                 style={styles.glassMealCard}
-                onPress={() => handleMealNFTPress(meal)}
+                onPress={() => {
+                  GameAudio.buttonPress();
+                  handleMealNFTPress(meal);
+                }}
               >
                 <LinearGradient
                   colors={[
@@ -488,7 +495,10 @@ export default function CollectionScreen() {
           </Text>
           <TouchableOpacity 
             style={styles.emptyButton}
-            onPress={() => router.push('/(game)/(tabs)/home')}
+            onPress={() => {
+              GameAudio.buttonPress();
+              router.push('/(game)/(tabs)/home');
+            }}
           >
             <Text style={styles.emptyButtonText}>🎮 Get Pet</Text>
           </TouchableOpacity>
@@ -576,7 +586,10 @@ export default function CollectionScreen() {
           </Text>
           <TouchableOpacity
             style={styles.emptyButton}
-            onPress={() => router.push('/(game)/(tabs)/scan')}
+            onPress={() => {
+              GameAudio.buttonPress();
+              router.push('/(game)/(tabs)/scan');
+            }}
           >
             <Text style={styles.emptyButtonText}>Feed Your Pet</Text>
           </TouchableOpacity>
@@ -681,7 +694,10 @@ export default function CollectionScreen() {
           <View style={styles.tabContainer}>
             <TouchableOpacity
               style={[styles.tab, activeTab === 'meals' && styles.activeTab]}
-              onPress={() => setActiveTab('meals')}
+              onPress={() => {
+                GameAudio.tabSwitch();
+                setActiveTab('meals');
+              }}
             >
               <Text style={[styles.tabText, activeTab === 'meals' && styles.activeTabText]}>
                 🍽️ Meals
@@ -690,7 +706,10 @@ export default function CollectionScreen() {
             
             <TouchableOpacity
               style={[styles.tab, activeTab === 'pets' && styles.activeTab]}
-              onPress={() => setActiveTab('pets')}
+              onPress={() => {
+                GameAudio.tabSwitch();
+                setActiveTab('pets');
+              }}
             >
               <Text style={[styles.tabText, activeTab === 'pets' && styles.activeTabText]}>
                 🐾 Pets
@@ -699,7 +718,10 @@ export default function CollectionScreen() {
 
             <TouchableOpacity
               style={[styles.tab, activeTab === 'leaderboard' && styles.activeTab]}
-              onPress={() => setActiveTab('leaderboard')}
+              onPress={() => {
+                GameAudio.tabSwitch();
+                setActiveTab('leaderboard');
+              }}
             >
               <Text style={[styles.tabText, activeTab === 'leaderboard' && styles.activeTabText]}>
                 🏆 Leaders

@@ -1,3 +1,4 @@
+import { GameAudio } from '@/utils/soundManager';
 import { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { PlatformPressable } from '@react-navigation/elements';
 import * as Haptics from 'expo-haptics';
@@ -11,6 +12,8 @@ export function HapticTab(props: BottomTabBarButtonProps) {
           // Add a soft haptic feedback when pressing down on the tabs.
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
+        // Add tab switch sound
+        GameAudio.tabSwitch();
         props.onPressIn?.(ev);
       }}
     />
