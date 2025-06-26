@@ -1,1 +1,1 @@
-{"version":1,"contracts":[{"id":"4kkjrf58b75fo","package_name":"contracts","contract_name":"BiteBuddyV4","module_path":"contracts::BiteBuddy::BiteBuddyV4","artifacts":{"sierra":"contracts_BiteBuddyV4.contract_class.json","casm":null}}]}
+{"version":1,"contracts":[{"id":"f1nooedjq49em","package_name":"contracts","contract_name":"BiteBuddyV6","module_path":"contracts::BiteBuddy::BiteBuddyV6","artifacts":{"sierra":"contracts_BiteBuddyV6.contract_class.json","casm":null}}]}

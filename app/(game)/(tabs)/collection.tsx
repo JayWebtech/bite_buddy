@@ -36,6 +36,15 @@ interface PetCollectionItem {
   rarity: 'Common' | 'Rare' | 'Epic' | 'Legendary';
 }
 
+interface LeaderboardEntry {
+  petId: string;
+  nutritionScore: string;
+  owner: string;
+  rank: number;
+  petName?: string;
+  isCurrentUser?: boolean;
+}
+
 interface GameAlertState {
   visible: boolean;
   title: string;
@@ -50,9 +59,10 @@ interface GameAlertState {
 
 export default function CollectionScreen() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'meals' | 'pets'>('meals');
+  const [activeTab, setActiveTab] = useState<'meals' | 'pets' | 'leaderboard'>('meals');
   const [mealNFTs, setMealNFTs] = useState<MealNFT[]>([]);
   const [petCollection, setPetCollection] = useState<PetCollectionItem[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [gameAlert, setGameAlert] = useState<GameAlertState>({
@@ -65,6 +75,7 @@ export default function CollectionScreen() {
 
   useEffect(() => {
     loadCollectionData();
+    loadLeaderboard();
   }, []);
 
   const loadCollectionData = async () => {
@@ -260,9 +271,38 @@ export default function CollectionScreen() {
     return 'D';
   };
 
+  const loadLeaderboard = async () => {
+    try {
+      console.log('Loading leaderboard...');
+      const leaderboardData = await walletManager.getLeaderboard();
+      console.log('Received leaderboard data:', leaderboardData);
+      
+      if (leaderboardData) {
+        // Get current user's wallet info to mark their entry
+        const walletInfo = await walletManager.getWalletInfo();
+        const currentUserAddress = walletInfo?.OZcontractAddress;
+        
+        // Process leaderboard entries
+        const processedLeaderboard = leaderboardData.map((entry, index) => ({
+          ...entry,
+          petName: `Pet #${entry.petId}`, // We could fetch pet names if needed
+          isCurrentUser: Boolean(currentUserAddress && entry.owner.toLowerCase() === currentUserAddress.toLowerCase())
+        }));
+        
+        setLeaderboard(processedLeaderboard);
+      } else {
+        setLeaderboard([]);
+      }
+    } catch (error) {
+      console.error('Error loading leaderboard:', error);
+      setLeaderboard([]);
+    }
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
     await loadCollectionData();
+    await loadLeaderboard();
     setRefreshing(false);
   };
 
@@ -518,6 +558,108 @@ export default function CollectionScreen() {
     setGameAlert(prev => ({ ...prev, visible: false }));
   };
 
+  const renderLeaderboard = () => (
+    <View style={styles.gridContainer}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>🏆 Nutrition Leaderboard</Text>
+        <Text style={styles.sectionSubtitle}>
+          Top performers ranked by nutrition score
+        </Text>
+      </View>
+
+      {leaderboard.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyEmoji}>🏆</Text>
+          <Text style={styles.emptyTitle}>No Rankings Yet</Text>
+          <Text style={styles.emptyDescription}>
+            Be the first to build up your pet's nutrition score and claim the top spot!
+          </Text>
+          <TouchableOpacity
+            style={styles.emptyButton}
+            onPress={() => router.push('/(game)/(tabs)/scan')}
+          >
+            <Text style={styles.emptyButtonText}>Feed Your Pet</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.leaderboardContainer}>
+          {leaderboard.map((entry, index) => (
+            <TouchableOpacity
+              key={`${entry.petId}-${entry.rank}`}
+              style={[
+                styles.leaderboardItem,
+                entry.isCurrentUser && styles.currentUserItem,
+                entry.rank === 1 && styles.firstPlace,
+                entry.rank === 2 && styles.secondPlace,
+                entry.rank === 3 && styles.thirdPlace,
+              ]}
+              onPress={() => handleLeaderboardPress(entry)}
+            >
+              <LinearGradient
+                colors={
+                  entry.isCurrentUser 
+                    ? [Colors.primary + '30', Colors.primary + '10']
+                    : entry.rank === 1
+                    ? ['rgba(255, 215, 0, 0.3)', 'rgba(255, 215, 0, 0.1)']
+                    : entry.rank === 2
+                    ? ['rgba(192, 192, 192, 0.3)', 'rgba(192, 192, 192, 0.1)']
+                    : entry.rank === 3
+                    ? ['rgba(205, 127, 50, 0.3)', 'rgba(205, 127, 50, 0.1)']
+                    : ['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']
+                }
+                style={styles.leaderboardGradient}
+              >
+                <View style={styles.rankContainer}>
+                  <Text style={styles.rankText}>
+                    {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`}
+                  </Text>
+                </View>
+
+                <View style={styles.petInfoContainer}>
+                  <Text style={styles.petName}>
+                    {entry.petName}
+                    {entry.isCurrentUser && ' (You)'}
+                  </Text>
+                  <Text style={styles.ownerAddress}>
+                    {entry.owner.slice(0, 6)}...{entry.owner.slice(-4)}
+                  </Text>
+                </View>
+
+                <View style={styles.scoreContainer}>
+                  <Text style={styles.nutritionScore}>
+                    {parseInt(entry.nutritionScore).toLocaleString()}
+                  </Text>
+                  <Text style={styles.scoreLabel}>Nutrition Score</Text>
+                </View>
+
+                {entry.isCurrentUser && (
+                  <View style={styles.currentUserBadge}>
+                    <Text style={styles.currentUserText}>YOU</Text>
+                  </View>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+
+  const handleLeaderboardPress = (entry: LeaderboardEntry) => {
+    showGameAlert(
+      `🏆 Rank #${entry.rank}`,
+      `${entry.petName}\n\n` +
+      `Nutrition Score: ${parseInt(entry.nutritionScore).toLocaleString()}\n` +
+      `Owner: ${entry.owner.slice(0, 10)}...${entry.owner.slice(-6)}\n\n` +
+      `${entry.isCurrentUser ? 'This is your pet! Keep feeding healthy meals to maintain your ranking.' : 'Great nutrition score! Feed your pet more healthy meals to climb the rankings.'}`,
+      entry.rank <= 3 ? '🏆' : '🐾',
+      [
+        { text: 'Close', onPress: hideGameAlert, variant: 'secondary' },
+        { text: 'Feed Pet', onPress: () => { hideGameAlert(); router.push('/(game)/(tabs)/scan'); }, variant: 'primary' }
+      ]
+    );
+  };
+
   return (
     <MintPetPrompt>
       <View style={styles.wrapper}>
@@ -554,6 +696,15 @@ export default function CollectionScreen() {
                 🐾 Pets
               </Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'leaderboard' && styles.activeTab]}
+              onPress={() => setActiveTab('leaderboard')}
+            >
+              <Text style={[styles.tabText, activeTab === 'leaderboard' && styles.activeTabText]}>
+                🏆 Leaders
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Content */}
@@ -570,6 +721,7 @@ export default function CollectionScreen() {
           >
             {activeTab === 'meals' && renderMealNFTs()}
             {activeTab === 'pets' && renderPetCollection()}
+            {activeTab === 'leaderboard' && renderLeaderboard()}
           </ScrollView>
         </View>
 
@@ -1013,5 +1165,90 @@ const styles = StyleSheet.create({
     fontFamily: 'Blockblueprint',
     color: '#FFFFFF',
     fontWeight: 'bold',
+  },
+
+  // Leaderboard styles
+  leaderboardContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  leaderboardItem: {
+    marginBottom: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  leaderboardGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 16,
+  },
+  currentUserItem: {
+    borderColor: Colors.primary,
+    borderWidth: 2,
+  },
+  firstPlace: {
+    borderColor: 'rgba(255, 215, 0, 0.5)',
+    borderWidth: 2,
+  },
+  secondPlace: {
+    borderColor: 'rgba(192, 192, 192, 0.5)',
+    borderWidth: 2,
+  },
+  thirdPlace: {
+    borderColor: 'rgba(205, 127, 50, 0.5)',
+    borderWidth: 2,
+  },
+  rankContainer: {
+    width: 50,
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  rankText: {
+    fontSize: 24,
+    fontFamily: 'Blockblueprint',
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  petInfoContainer: {
+    flex: 1,
+    marginRight: 16,
+  },
+  scoreContainer: {
+    alignItems: 'flex-end',
+  },
+  nutritionScore: {
+    fontSize: 18,
+    fontFamily: 'Blockblueprint',
+    color: Colors.primary,
+    fontWeight: 'bold',
+  },
+  scoreLabel: {
+    fontSize: 10,
+    fontFamily: 'Blockblueprint',
+    color: '#B0B0B0',
+    marginTop: 2,
+  },
+  currentUserBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  currentUserText: {
+    fontSize: 10,
+    fontFamily: 'Blockblueprint',
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  ownerAddress: {
+    fontSize: 12,
+    fontFamily: 'Blockblueprint',
+    color: '#B0B0B0',
   },
 }); 

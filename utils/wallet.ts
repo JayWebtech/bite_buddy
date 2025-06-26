@@ -752,35 +752,55 @@ export class BiteBuddyWallet {
       }
 
       const account = await this.initializeAccount(pin);
+      const { abi } = await this.provider.getClassAt(contract_address);
+      const BiteBuddyContract = new Contract(abi, contract_address, account);
       
       console.log(`Initiating battle: Pet ${petId} vs Computer Opponent ${opponentId}`);
 
-      const petIdBigInt = BigInt(petId);
-      const low = petIdBigInt & BigInt('0xffffffffffffffffffffffffffffffff');
-      const high = petIdBigInt >> BigInt(128);
+      // Use the contract invoke method to get the return value
+      const result = await BiteBuddyContract.initiate_battle_vs_computer(petId, opponentId);
+      console.log('Battle initiation result:', result);
 
-      console.log("low", low.toString());
-      console.log("high", high.toString());
-      console.log("opponentId", opponentId.toString());
-
-      const calls: Call[] = [
-        {
-        contractAddress: Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR,
-        entrypoint: 'initiate_battle_vs_computer',
-        calldata: [low.toString(), high.toString(), opponentId.toString()],
-        },
-      ];
-
-      const { transaction_hash: txH } = await account.execute(calls, {
-        version: 3,
-      });
-
-      console.log('Transaction hash:', txH);
-
-      const txR = await this.provider.waitForTransaction(txH);
+      // Wait for transaction confirmation
+      const txR = await this.provider.waitForTransaction(result.transaction_hash);
       console.log('Transaction result:', txR);
       
-      return txR.isSuccess() ? txH : null;
+      if (txR.isSuccess()) {
+        // The return value should be available in the result
+        // For invoke functions that return values, check multiple possible locations
+        if (result.result && result.result.length > 0) {
+          const battleId = result.result[0];
+          console.log('Battle ID from result:', battleId);
+          return battleId.toString();
+        }
+        
+        // Fallback: try to extract from events
+        const events = txR.events || [];
+        console.log('All events:', events);
+        
+        for (const event of events) {
+          console.log('Event data:', event.data);
+          if (event.data && event.data.length > 0) {
+            // Look for a battle ID pattern (typically numeric and not an address)
+            for (let i = 0; i < event.data.length; i++) {
+              const potentialBattleId = event.data[i];
+              if (potentialBattleId && potentialBattleId !== '0x0') {
+                const numeric = parseInt(potentialBattleId, 16);
+                // Battle IDs are typically small numbers (1, 2, 3, etc.)
+                if (numeric > 0 && numeric < 1000000) {
+                  console.log(`Found battle ID in events:`, potentialBattleId);
+                  return potentialBattleId;
+                }
+              }
+            }
+          }
+        }
+        
+        console.warn('No battle ID found, using transaction hash as fallback');
+        return result.transaction_hash;
+      } else {
+        return null;
+      }
     } catch (error) {
       console.error('Error initiating battle vs computer:', error);
       return null;
@@ -835,6 +855,100 @@ export class BiteBuddyWallet {
         error: error instanceof Error ? error.message : 'Unknown error executing battle move'
       };
     }
+  }
+
+  async executeCompleteBattle(battleId: string, challengerMoves: number[], pin?: string): Promise<{
+    success: boolean;
+    winner?: string;
+    battleLog?: string[];
+    error?: string;
+  }> {
+    try {
+      const contract_address = Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR;
+      if (!contract_address) {
+        throw new Error('BITEBUDDY_CONTRACT_ADDR environment variable is not set');
+      }
+
+      const account = await this.initializeAccount(pin);
+      console.log(`Executing complete battle for battle ${battleId} with moves:`, challengerMoves);
+
+      const battleIdBigInt = BigInt(battleId);
+      const low = battleIdBigInt & BigInt('0xffffffffffffffffffffffffffffffff');
+      const high = battleIdBigInt >> BigInt(128);
+
+      console.log("challengerMoves", challengerMoves.length.toString());
+      console.log("challengerMoves", challengerMoves.map(move => move.toString()));
+
+      // Use account.execute with manual calldata construction
+      const calls: Call[] = [
+        {
+          entrypoint: 'execute_complete_battle',
+          contractAddress: contract_address,
+          calldata: [
+            low.toString(),
+            high.toString(),
+            challengerMoves.length.toString(),
+            ...challengerMoves.map(move => move.toString()),
+          ],
+        },
+      ];
+
+      console.log(calls)
+
+      const { transaction_hash } = await account.execute(calls, {
+        version: 3,
+        paymasterData: [],
+      });
+
+      console.log('Complete battle transaction hash:', transaction_hash);
+      const receipt = await this.provider.waitForTransaction(transaction_hash);
+      
+      if (receipt.isSuccess()) {
+        // Parse the result to get the winner
+        const events = receipt.events || [];
+        let winner = null;
+        
+        // Look for BattleCompleted event
+        for (const event of events) {
+          if (event.keys && event.keys[0] && event.keys[0].includes('BattleCompleted')) {
+            // winner_pet should be in the event data
+            winner = event.data ? event.data[1] : null;
+            break;
+          }
+        }
+        
+        return {
+          success: true,
+          winner: winner || battleId, // Fallback to battleId if winner not found
+          battleLog: [
+            `Battle completed with ${challengerMoves.length} moves!`,
+            `Moves used: ${challengerMoves.map(m => this.getMoveNames()[m]).join(', ')}`,
+            `Transaction: ${transaction_hash}`
+          ]
+        };
+      } else {
+        return {
+          success: false,
+          error: 'Complete battle execution failed'
+        };
+      }
+    } catch (error) {
+      console.error('Execute complete battle error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error executing complete battle'
+      };
+    }
+  }
+
+  private getMoveNames(): string[] {
+    return [
+      'Quick Strike',   // 0
+      'Power Slam',     // 1
+      'Shield Up',      // 2
+      'Heal',           // 3
+      'Energy Boost'    // 4
+    ];
   }
 
   async getBattleResult(battleId: string): Promise<{
@@ -945,6 +1059,93 @@ export class BiteBuddyWallet {
     return names[opponentId as keyof typeof names] || `Opponent ${opponentId}`;
   }
 
+  async getLeaderboard(): Promise<Array<{
+    petId: string;
+    nutritionScore: string;
+    owner: string;
+    rank: number;
+  }> | null> {
+    try {
+      const contract_address = Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR;
+      if (!contract_address) {
+        throw new Error('BITEBUDDY_CONTRACT_ADDR environment variable is not set');
+      }
+
+      const call = {
+        contractAddress: contract_address,
+        entrypoint: 'get_leaderboard',
+        calldata: [],
+      };
+
+      const leaderboardData = await this.provider.callContract(call);
+      console.log("Raw leaderboard response:", leaderboardData);
+
+      if (!leaderboardData || leaderboardData.length === 0) {
+        console.log('No leaderboard data available');
+        return [];
+      }
+
+      // Parse leaderboard data
+      // The contract returns Array<(u256, u256, ContractAddress)>
+      // Each entry is: (pet_id, nutrition_score, owner)
+      // Since u256 takes 2 felts (low, high) and ContractAddress takes 1 felt:
+      // Each leaderboard entry takes 5 felts: [pet_id_low, pet_id_high, nutrition_score_low, nutrition_score_high, owner]
+      
+      const leaderboard: Array<{
+        petId: string;
+        nutritionScore: string;
+        owner: string;
+        rank: number;
+      }> = [];
+
+      // First felt is the array length
+      const arrayLength = parseInt(leaderboardData[0], 16);
+      console.log('Leaderboard array length:', arrayLength);
+
+      // Parse each leaderboard entry (5 felts per entry)
+      for (let i = 0; i < arrayLength; i++) {
+        const baseIndex = 1 + (i * 5); // Start after length felt, 5 felts per entry
+        
+        if (baseIndex + 4 < leaderboardData.length) {
+          // Parse pet_id (u256)
+          const petIdLow = BigInt(leaderboardData[baseIndex] || '0x0');
+          const petIdHigh = BigInt(leaderboardData[baseIndex + 1] || '0x0');
+          const petId = (petIdLow + (petIdHigh << BigInt(128))).toString();
+          
+          // Parse nutrition_score (u256)  
+          const nutritionLow = BigInt(leaderboardData[baseIndex + 2] || '0x0');
+          const nutritionHigh = BigInt(leaderboardData[baseIndex + 3] || '0x0');
+          const nutritionScore = (nutritionLow + (nutritionHigh << BigInt(128))).toString();
+          
+          // Parse owner (ContractAddress)
+          const owner = leaderboardData[baseIndex + 4] || '0x0';
+          
+          leaderboard.push({
+            petId,
+            nutritionScore,
+            owner,
+            rank: i + 1
+          });
+          
+          console.log(`Leaderboard entry ${i + 1}: Pet ${petId}, Score ${nutritionScore}, Owner ${owner}`);
+        }
+      }
+
+      // Sort by nutrition score (descending)
+      leaderboard.sort((a, b) => parseInt(b.nutritionScore) - parseInt(a.nutritionScore));
+      
+      // Update ranks after sorting
+      leaderboard.forEach((entry, index) => {
+        entry.rank = index + 1;
+      });
+
+      return leaderboard;
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error);
+      return null;
+    }
+  }
+
   async createSessionKey(duration: number = 24, maxBattles: number = 10, pin?: string): Promise<boolean> {
     try {
       const account = await this.initializeAccount(pin);
@@ -985,4 +1186,4 @@ export class BiteBuddyWallet {
 }
 
 // Export singleton instance
-export const walletManager = new BiteBuddyWallet();
+export const walletManager = new BiteBuddyWallet(); 

@@ -3,12 +3,13 @@ import GameButton from '@/components/ui/GameButton';
 import { MintPetPrompt } from '@/components/ui/MintPetPrompt';
 import { Colors } from '@/constants/Colors';
 import { walletManager } from '@/utils/wallet';
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import LottieView from 'lottie-react-native';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -98,38 +99,7 @@ const getUserPetAnimation = (petId?: string) => {
   return userPetAnimations[index];
 };
 
-const opponents: Opponent[] = [
-  {
-    id: 1,
-    name: 'Wild Pup',
-    level: 1,
-    image: require('@/assets/images/pet-2.png'),
-    webImage: getOpponentPetImage(1),
-    stats: { health: 80, attack: 25, defense: 15 },
-    reward: 50,
-    petId: '1'
-  },
-  {
-    id: 2,
-    name: 'Forest Guardian',
-    level: 2,
-    image: require('@/assets/images/pet-3.png'),
-    webImage: getOpponentPetImage(2),
-    stats: { health: 120, attack: 35, defense: 25 },
-    reward: 75,
-    petId: '2'
-  },
-  {
-    id: 3,
-    name: 'Shadow Beast',
-    level: 3,
-    image: require('@/assets/images/pet-4.png'),
-    webImage: getOpponentPetImage(3),
-    stats: { health: 150, attack: 45, defense: 30 },
-    reward: 100,
-    petId: '3'
-  }
-];
+// Removed static opponents array - now using only contract opponents
 
 const battleCards: BattleCard[] = [
   { id: 1, name: 'Quick Strike', type: 'attack', power: 30, energyCost: 20, description: 'Fast attack', emoji: '⚡', cardIndex: 0 },
@@ -152,6 +122,10 @@ export default function BattleScreen() {
   const [currentBattleId, setCurrentBattleId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [contractOpponents, setContractOpponents] = useState<{[key: number]: any}>({});
+  const [storedMoves, setStoredMoves] = useState<number[]>([]);
+  const [loadingOpponents, setLoadingOpponents] = useState(true);
+  const [processingMove, setProcessingMove] = useState(false);
+  const [submittingBattle, setSubmittingBattle] = useState(false);
   const [gameAlert, setGameAlert] = useState<GameAlertState>({
     visible: false,
     title: '',
@@ -170,6 +144,7 @@ export default function BattleScreen() {
 
   const loadComputerOpponents = async () => {
     try {
+      setLoadingOpponents(true);
       // Load real computer opponents from contract
       const loadedOpponents: {[key: number]: any} = {};
       
@@ -179,39 +154,43 @@ export default function BattleScreen() {
           loadedOpponents[i] = opponent;
           console.log(`✅ Contract opponent ${i} loaded:`, opponent);
         } else {
-          console.log(`⚠️ Contract opponent ${i} not initialized, using fallback data`);
+          console.log(`⚠️ Contract opponent ${i} not initialized`);
         }
       }
       
       setContractOpponents(loadedOpponents);
     } catch (error) {
       console.error('Error loading computer opponents:', error);
+    } finally {
+      setLoadingOpponents(false);
     }
   };
 
-  // Create enhanced opponents that merge contract data with static data
-  const getEnhancedOpponents = (): Opponent[] => {
-    return opponents.map(opponent => {
-      const contractData = contractOpponents[opponent.id];
-      
+  // Create opponents from contract data only
+  const getContractOpponents = (): Opponent[] => {
+    const contractOpponentsList: Opponent[] = [];
+    
+    Object.entries(contractOpponents).forEach(([key, contractData]) => {
+      const opponentId = parseInt(key);
       if (contractData && contractData.health > 0) {
-        // Use real contract data
-        return {
-          ...opponent,
+        contractOpponentsList.push({
+          id: opponentId,
+          name: contractData.name,
           level: contractData.level,
+          image: require('@/assets/images/pet-2.png'), // Default image
+          webImage: getOpponentPetImage(opponentId),
           stats: {
             health: contractData.health,
             attack: Math.floor(contractData.health / 4), // Derive attack from health
             defense: Math.floor(contractData.health / 6), // Derive defense from health
           },
-          // Increase rewards for contract opponents since they're "real"
-          reward: opponent.reward + 25,
+          reward: 50 + (contractData.level * 25), // Level-based rewards
           petId: contractData.id
-        };
+        });
       }
-      // Use fallback static data
-      return opponent;
     });
+    
+    return contractOpponentsList;
   };
 
   const showGameAlert = (title: string, message: string, icon: string, buttons: GameAlertState['buttons']) => {
@@ -420,88 +399,70 @@ export default function BattleScreen() {
       return;
     }
 
-    try {
-      setIsLoading(true);
-      setPlayerEnergy(prev => prev - card.energyCost);
-      
-      // Execute the battle move on contract
-      const battleResult = await walletManager.executeBattleMove(
-        currentBattleId, 
-        [card.cardIndex] // Send the card index as the selected move
-      );
+    // Add haptic feedback
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    
+    // Set processing state
+    setProcessingMove(true);
 
-      let logMessage = '';
-      
-      if (battleResult.success) {
-        // Calculate local effects for immediate feedback
-        switch (card.type) {
-          case 'attack':
-            const damage = Math.max(1, card.power - (selectedOpponent?.stats.defense || 0));
-            setOpponentHealth(prev => Math.max(0, prev - damage));
-            logMessage = `You used ${card.name} and dealt ${damage} damage!`;
-            
-            Animated.sequence([
-              Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
-              Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
-              Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
-              Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
-            ]).start();
-            break;
-            
-          case 'defense':
-            logMessage = `You used ${card.name} and increased your defense!`;
-            break;
-            
-          case 'special':
-            if (card.name === 'Heal') {
-              const healAmount = Math.min(card.power, (playerPet?.maxHealth || 100) - playerHealth);
-              setPlayerHealth(prev => Math.min(playerPet?.maxHealth || 100, prev + healAmount));
-              logMessage = `You used ${card.name} and restored ${healAmount} health!`;
-            } else if (card.name === 'Energy Boost') {
-              const energyGain = Math.min(card.power, 100 - playerEnergy);
-              setPlayerEnergy(prev => Math.min(100, prev + energyGain));
-              logMessage = `You used ${card.name} and gained ${energyGain} energy!`;
-            }
-            break;
-        }
+    // Store move locally instead of submitting to contract immediately
+    setStoredMoves(prev => [...prev, card.cardIndex]);
+    setPlayerEnergy(prev => prev - card.energyCost);
+    
+    let logMessage = '';
+    
+    // Calculate local effects for immediate feedback
+    switch (card.type) {
+      case 'attack':
+        const damage = Math.max(1, card.power - (selectedOpponent?.stats.defense || 0));
+        setOpponentHealth(prev => Math.max(0, prev - damage));
+        logMessage = `You used ${card.name} and dealt ${damage} damage!`;
         
-        // Add contract battle log messages
-        setBattleLog(prev => {
-          const newLog = [...prev, logMessage];
-          if (battleResult.battleLog && Array.isArray(battleResult.battleLog)) {
-            return newLog.concat(battleResult.battleLog);
-          } else {
-            return [...newLog, 'Battle move executed on contract!'];
-          }
-        });
-
-        // Check if battle is completed on contract
-        if (battleResult.winner && battleResult.winner !== '0') {
-          console.log('Battle completed, winner:', battleResult.winner);
-          // Battle is complete, winner will be handled by the useEffect
-        } else {
-          setIsPlayerTurn(false);
-          setTimeout(() => {
-            aiTurn();
-          }, 1500);
+        Animated.sequence([
+          Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+        ]).start();
+        break;
+        
+      case 'defense':
+        logMessage = `You used ${card.name} and increased your defense!`;
+        break;
+        
+      case 'special':
+        if (card.name === 'Heal') {
+          const healAmount = Math.min(card.power, (playerPet?.maxHealth || 100) - playerHealth);
+          setPlayerHealth(prev => Math.min(playerPet?.maxHealth || 100, prev + healAmount));
+          logMessage = `You used ${card.name} and restored ${healAmount} health!`;
+        } else if (card.name === 'Energy Boost') {
+          const energyGain = Math.min(card.power, 100 - playerEnergy);
+          setPlayerEnergy(prev => Math.min(100, prev + energyGain));
+          logMessage = `You used ${card.name} and gained ${energyGain} energy!`;
         }
-      } else {
-        setBattleLog(prev => [...prev, `Error executing move: ${battleResult.error}`]);
-        // Refund energy on error
-        setPlayerEnergy(prev => prev + card.energyCost);
-      }
-    } catch (error) {
-      console.error('Error using card:', error);
-      setBattleLog(prev => [...prev, 'Error executing battle move']);
-      // Refund energy on error
-      setPlayerEnergy(prev => prev + card.energyCost);
-    } finally {
-      setIsLoading(false);
+        break;
     }
+    
+    // Simulate processing time
+    setTimeout(() => {
+      // Add move to battle log
+      setBattleLog(prev => [...prev, `${logMessage} (Move stored locally)`]);
+      
+      setProcessingMove(false);
+      
+      // Continue with AI turn
+      setIsPlayerTurn(false);
+      setTimeout(() => {
+        aiTurn();
+      }, 1500);
+    }, 800); // 800ms processing time
   };
 
   const aiTurn = () => {
     if (!selectedOpponent) return;
+    
+    // Add haptic feedback for AI move
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     
     const damage = Math.max(1, selectedOpponent.stats.attack - 10);
     setPlayerHealth(prev => Math.max(0, prev - damage));
@@ -513,38 +474,94 @@ export default function BattleScreen() {
   };
 
   useEffect(() => {
-    if (opponentHealth <= 0 && inBattle && selectedOpponent) {
+    if (opponentHealth <= 0 && inBattle && selectedOpponent && currentBattleId) {
       setTimeout(() => {
-        showGameAlert(
-          '🎉 Victory!',
-          `Your ${playerPet?.name} defeated ${selectedOpponent.name}!\n\nRewards:\n💰 ${selectedOpponent.reward} coins\n⭐ Experience gained`,
-          '🏆',
-          [
-            { text: 'Claim Rewards', onPress: () => endBattle(), variant: 'success' },
-            { text: 'Battle Again', onPress: () => restartBattle(), variant: 'primary' }
-          ]
-        );
+        submitCompleteBattle(true); // Player won
       }, 1000);
-    } else if (playerHealth <= 0 && inBattle) {
+    } else if (playerHealth <= 0 && inBattle && currentBattleId) {
       setTimeout(() => {
-        showGameAlert(
-          '💀 Defeat!',
-          `Your ${playerPet?.name} was defeated by ${selectedOpponent?.name}.\n\nTip: Feed your pet healthy meals to increase strength!`,
-          '😵',
-          [
-            { text: 'Train More', onPress: () => router.push('/(game)/(tabs)/scan'), variant: 'primary' },
-            { text: 'Try Again', onPress: () => restartBattle(), variant: 'secondary' }
-          ]
-        );
+        submitCompleteBattle(false); // Player lost
       }, 1000);
     }
   }, [opponentHealth, playerHealth]);
+
+  const submitCompleteBattle = async (playerWon: boolean) => {
+    if (!currentBattleId || storedMoves.length === 0) {
+      // If no moves were made, just show the result
+      showBattleResult(playerWon);
+      return;
+    }
+
+    try {
+      setSubmittingBattle(true);
+      setBattleLog(prev => [...prev, 'Submitting battle results to contract...']);
+
+      const battleResult = await walletManager.executeCompleteBattle(
+        currentBattleId,
+        storedMoves
+      );
+
+      if (battleResult.success) {
+        setBattleLog(prev => [
+          ...prev,
+          `✅ Battle completed on-chain!`,
+          ...battleResult.battleLog || []
+        ]);
+        
+        // Show success result
+        showBattleResult(playerWon, battleResult.winner);
+      } else {
+        // setBattleLog(prev => [...prev, `❌ Error: ${battleResult.error}`]);
+        // showGameAlert(
+        //   'Battle Submission Failed',
+        //   `Could not submit battle to contract: ${battleResult.error}`,
+        //   '❌',
+        //   [{ text: 'OK', onPress: hideGameAlert, variant: 'primary' }]
+        // );
+      }
+    } catch (error) {
+      console.error('Error submitting complete battle:', error);
+      setBattleLog(prev => [...prev, `❌ Contract error: ${error}`]);
+      showGameAlert(
+        'Battle Submission Failed',
+        'Could not submit battle to contract. Please try again.',
+        '❌',
+        [{ text: 'OK', onPress: hideGameAlert, variant: 'primary' }]
+      );
+    } finally {
+      setSubmittingBattle(false);
+    }
+  };
+
+  const showBattleResult = (playerWon: boolean, contractWinner?: string) => {
+    if (playerWon) {
+      showGameAlert(
+        '🎉 Victory!',
+        `Your ${playerPet?.name} defeated ${selectedOpponent?.name}!\n\nMoves used: ${storedMoves.length}\nTransaction submitted to contract!\n\nRewards:\n💰 ${selectedOpponent?.reward} coins\n⭐ Experience gained`,
+        '🏆',
+        [
+          { text: 'Claim Rewards', onPress: () => endBattle(), variant: 'success' },
+        ]
+      );
+    } else {
+      showGameAlert(
+        '💀 Defeat!',
+        `Your ${playerPet?.name} was defeated by ${selectedOpponent?.name}.\n\nMoves used: ${storedMoves.length}\nTransaction submitted to contract!\n\nTip: Feed your pet healthy meals to increase strength!`,
+        '😵',
+        [
+          { text: 'Train More', onPress: () => router.push('/(game)/(tabs)/scan'), variant: 'primary' },
+          { text: 'Try Again', onPress: () => restartBattle(), variant: 'secondary' }
+        ]
+      );
+    }
+  };
 
   const endBattle = () => {
     setInBattle(false);
     setSelectedOpponent(null);
     setBattleLog([]);
     setCurrentBattleId(null);
+    setStoredMoves([]);
     hideGameAlert();
     loadPlayerPet();
   };
@@ -568,71 +585,73 @@ export default function BattleScreen() {
         />
         <View style={styles.darkOverlay} />
         
-        <View style={styles.battleContainer}>
+        <ScrollView style={styles.battleContainer} showsVerticalScrollIndicator={false}>
           <View style={styles.battleArena}>
-            <View style={styles.combatant}>
-              <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
-                <Image
-                  source={{ uri: selectedOpponent.webImage || selectedOpponent.image }}
-                  style={styles.opponentImage}
-                  contentFit="contain"
-                  placeholder={selectedOpponent.image} // Fallback to local image
+            <View style={styles.fightersRow}>
+              <View style={styles.combatant}>
+                <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
+                  <Image
+                    source={{ uri: selectedOpponent.webImage || selectedOpponent.image }}
+                    style={styles.opponentImage}
+                    contentFit="contain"
+                    placeholder={selectedOpponent.image} // Fallback to local image
+                  />
+                </Animated.View>
+                <Text style={styles.combatantName}>{selectedOpponent.name}</Text>
+                <View style={styles.healthBarContainer}>
+                  <View style={styles.healthBar}>
+                    <LinearGradient
+                      colors={['#e74c3c', '#c0392b']}
+                      style={[
+                        styles.healthFill,
+                        { width: `${(opponentHealth / selectedOpponent.stats.health) * 100}%` }
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.healthText}>{opponentHealth}/{selectedOpponent.stats.health}</Text>
+                </View>
+              </View>
+
+              <LinearGradient
+                colors={[Colors.primary, '#00A868']}
+                style={styles.vsContainer}
+              >
+                <Text style={styles.vsText}>VS</Text>
+              </LinearGradient>
+
+              <View style={styles.combatant}>
+                <LottieView
+                  source={getUserPetAnimation(playerPet.id)}
+                  autoPlay
+                  loop
+                  style={styles.playerLottie}
                 />
-              </Animated.View>
-              <Text style={styles.combatantName}>{selectedOpponent.name}</Text>
-              <View style={styles.healthBarContainer}>
-                <View style={styles.healthBar}>
-                  <LinearGradient
-                    colors={['#e74c3c', '#c0392b']}
-                    style={[
-                      styles.healthFill,
-                      { width: `${(opponentHealth / selectedOpponent.stats.health) * 100}%` }
-                    ]}
-                  />
+                <Text style={styles.combatantName}>{playerPet.name}</Text>
+                <View style={styles.healthBarContainer}>
+                  <View style={styles.healthBar}>
+                    <LinearGradient
+                      colors={['#16a085', '#1abc9c']}
+                      style={[
+                        styles.healthFill,
+                        { width: `${(playerHealth / (playerPet.maxHealth || 100)) * 100}%` }
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.healthText}>{playerHealth}/{playerPet.maxHealth || 100}</Text>
                 </View>
-                <Text style={styles.healthText}>{opponentHealth}/{selectedOpponent.stats.health}</Text>
-              </View>
-            </View>
-
-            <LinearGradient
-              colors={[Colors.primary, '#00A868']}
-              style={styles.vsContainer}
-            >
-              <Text style={styles.vsText}>VS</Text>
-            </LinearGradient>
-
-            <View style={styles.combatant}>
-              <LottieView
-                source={getUserPetAnimation(playerPet.id)}
-                autoPlay
-                loop
-                style={styles.playerLottie}
-              />
-              <Text style={styles.combatantName}>{playerPet.name}</Text>
-              <View style={styles.healthBarContainer}>
-                <View style={styles.healthBar}>
-                  <LinearGradient
-                    colors={['#16a085', '#1abc9c']}
-                    style={[
-                      styles.healthFill,
-                      { width: `${(playerHealth / (playerPet.maxHealth || 100)) * 100}%` }
-                    ]}
-                  />
+                
+                <View style={styles.energyBarContainer}>
+                  <View style={styles.energyBar}>
+                    <LinearGradient
+                      colors={[Colors.primary, '#667eea']}
+                      style={[
+                        styles.energyFill,
+                        { width: `${playerEnergy}%` }
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.energyText}>Energy: {playerEnergy}/100</Text>
                 </View>
-                <Text style={styles.healthText}>{playerHealth}/{playerPet.maxHealth || 100}</Text>
-              </View>
-              
-              <View style={styles.energyBarContainer}>
-                <View style={styles.energyBar}>
-                  <LinearGradient
-                    colors={[Colors.primary, '#667eea']}
-                    style={[
-                      styles.energyFill,
-                      { width: `${playerEnergy}%` }
-                    ]}
-                  />
-                </View>
-                <Text style={styles.energyText}>Energy: {playerEnergy}/100</Text>
               </View>
             </View>
           </View>
@@ -640,53 +659,69 @@ export default function BattleScreen() {
           {isPlayerTurn && (
             <View style={styles.cardsSection}>
               <Text style={styles.cardsTitle}>Choose Your Move</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardsContainer}>
-                {battleCards.map((card) => (
+              {storedMoves.length > 0 && (
+                <View style={styles.storedMovesContainer}>
+                  <Text style={styles.storedMovesText}>
+                    📝 Moves stored: {storedMoves.length} (will submit when battle ends)
+                  </Text>
+                </View>
+              )}
+              <View style={styles.cardsGrid}>
+                {battleCards.map((card, index) => (
                   <TouchableOpacity
                     key={card.id}
                     style={[
                       styles.battleCard,
-                      playerEnergy < card.energyCost && styles.cardDisabled
+                      playerEnergy < card.energyCost && styles.cardDisabled,
+                      index === 4 ? styles.cardFullWidth : (index % 2 === 0 ? styles.cardLeft : styles.cardRight)
                     ]}
                     onPress={() => useCard(card)}
-                    disabled={playerEnergy < card.energyCost}
+                    disabled={playerEnergy < card.energyCost || isLoading || processingMove || submittingBattle}
                   >
                     <LinearGradient
-                      colors={playerEnergy >= card.energyCost ? 
+                      colors={playerEnergy >= card.energyCost && !processingMove && !submittingBattle ? 
                         ['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)'] :
                         ['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.02)']}
                       style={styles.cardGradient}
                     >
-                      <Text style={styles.cardEmoji}>{card.emoji}</Text>
-                      <Text style={styles.cardName}>{card.name}</Text>
-                      <Text style={styles.cardPower}>
-                        {card.type === 'attack' ? `${card.power} ATK` : 
-                         card.type === 'defense' ? `${card.power} DEF` : 
-                         `${card.power} SPL`}
-                      </Text>
-                      <Text style={[styles.cardCost, playerEnergy < card.energyCost && styles.cardCostDisabled]}>
-                        ⚡ {card.energyCost}
-                      </Text>
+                      {(processingMove || submittingBattle) ? (
+                        <ActivityIndicator size="large" color={Colors.primary} />
+                      ) : (
+                        <>
+                          <Text style={styles.cardEmoji}>{card.emoji}</Text>
+                          <Text style={styles.cardName}>{card.name}</Text>
+                          <Text style={styles.cardPower}>
+                            {card.type === 'attack' ? `${card.power} ATK` : 
+                             card.type === 'defense' ? `${card.power} DEF` : 
+                             `${card.power} SPL`}
+                          </Text>
+                          <Text style={[styles.cardCost, playerEnergy < card.energyCost && styles.cardCostDisabled]}>
+                            ⚡ {card.energyCost}
+                          </Text>
+                        </>
+                      )}
                     </LinearGradient>
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
+              </View>
             </View>
           )}
 
-          <View style={styles.battleLogContainer}>
-            <LinearGradient
-              colors={['rgba(0, 0, 0, 0.8)', 'rgba(0, 0, 0, 0.6)']}
-              style={styles.battleLog}
-            >
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {battleLog.map((log, index) => (
-                  <Text key={index} style={styles.logText}>{log}</Text>
-                ))}
-              </ScrollView>
-            </LinearGradient>
-          </View>
-        </View>
+          {/* {battleLog && (
+            <View style={styles.battleLogContainer}>
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+                style={styles.battleLog}
+              >
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {battleLog.map((log, index) => (
+                    <Text key={index} style={styles.logText}>{log}</Text>
+                  ))}
+                </ScrollView>
+              </LinearGradient>
+            </View>
+          )} */}
+        </ScrollView>
 
         <GameAlert
           visible={gameAlert.visible}
@@ -697,6 +732,22 @@ export default function BattleScreen() {
           buttons={gameAlert.buttons}
           onClose={hideGameAlert}
         />
+
+        {/* Full-screen loading overlay for battle submission */}
+        {submittingBattle && (
+          <View style={styles.loadingOverlay}>
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.loadingTitle}>Submitting Battle to Contract</Text>
+              <Text style={styles.loadingMessage}>
+                Please wait while we process your battle moves on-chain...
+              </Text>
+              <Text style={styles.loadingSubtext}>
+                This may take a few moments to complete.
+              </Text>
+            </View>
+          </View>
+        )}
       </View>
     );
   }
@@ -726,7 +777,16 @@ export default function BattleScreen() {
 
           <View style={styles.opponentsSection}>
             <Text style={styles.sectionTitle}>Choose Your Opponent</Text>
-            {getEnhancedOpponents().map((opponent) => {
+            {loadingOpponents ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>🔄 Loading opponents from contract...</Text>
+              </View>
+            ) : getContractOpponents().length === 0 ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.noOpponentsText}>⚠️ No opponents available. Contract may not be initialized.</Text>
+              </View>
+            ) : (
+              getContractOpponents().map((opponent) => {
               const opponentPower = calculateBattlePower(opponent);
               const playerPower = playerPet ? calculateBattlePower(playerPet) : 0;
               const winChance = playerPet ? calculateWinProbability(playerPower, opponentPower, playerPet.level) : 50;
@@ -782,7 +842,8 @@ export default function BattleScreen() {
                   </LinearGradient>
                 </TouchableOpacity>
               );
-            })}
+            })
+            )}
           </View>
 
           <LinearGradient
@@ -794,6 +855,8 @@ export default function BattleScreen() {
             <Text style={styles.tipText}>• Defense cards reduce incoming damage next turn</Text>
             <Text style={styles.tipText}>• Special cards provide healing and energy boosts</Text>
             <Text style={styles.tipText}>• Energy regenerates +15 each turn</Text>
+            <Text style={styles.tipText}>• Moves are stored locally and submitted when battle ends</Text>
+            <Text style={styles.tipText}>• Only one transaction required per battle (gas efficient!)</Text>
             <Text style={styles.tipText}>• Feed your pet healthy meals to boost battle stats</Text>
           </LinearGradient>
         </ScrollView>
@@ -807,6 +870,22 @@ export default function BattleScreen() {
           buttons={gameAlert.buttons}
           onClose={hideGameAlert}
         />
+
+        {/* Full-screen loading overlay for battle submission */}
+        {submittingBattle && (
+          <View style={styles.loadingOverlay}>
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.loadingTitle}>Submitting Battle to Contract</Text>
+              <Text style={styles.loadingMessage}>
+                Please wait while we process your battle moves on-chain...
+              </Text>
+              <Text style={styles.loadingSubtext}>
+                This may take a few moments to complete.
+              </Text>
+            </View>
+          </View>
+        )}
       </View>
     </MintPetPrompt>
   );
@@ -838,10 +917,11 @@ const styles = StyleSheet.create({
   },
   battleContainer: {
     flex: 1,
+    marginTop:50
   },
   header: {
     alignItems: 'center',
-    marginTop: 60,
+    marginTop: 100,
     marginBottom: 30,
   },
   title: {
@@ -937,40 +1017,46 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   battleArena: {
-    padding: 20,
     alignItems: 'center',
+  },
+  fightersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
   },
   combatant: {
     alignItems: 'center',
-    marginVertical: 20,
+    flex: 1,
   },
   opponentImage: {
-    width: 120,
-    height: 120,
+    width: 80,
+    height: 80,
   },
   playerLottie: {
-    width: 120,
-    height: 120,
+    width: 80,
+    height: 80,
     backgroundColor: 'transparent',
   },
   combatantName: {
-    fontSize: 20,
+    fontSize: 16,
     fontFamily: 'Blockblueprint',
     color: '#FFFFFF',
-    marginTop: 8,
+    marginTop: 6,
+    textAlign: 'center',
     textShadowColor: 'rgba(0, 0, 0, 0.8)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
   },
   healthBarContainer: {
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 6,
   },
   healthBar: {
-    width: 140,
-    height: 10,
+    width: 100,
+    height: 8,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 5,
+    borderRadius: 4,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
@@ -980,20 +1066,20 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   healthText: {
-    fontSize: 14,
+    fontSize: 12,
     fontFamily: 'Blockblueprint',
     color: '#FFFFFF',
-    marginTop: 4,
+    marginTop: 3,
   },
   energyBarContainer: {
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 6,
   },
   energyBar: {
-    width: 140,
-    height: 8,
+    width: 100,
+    height: 6,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 4,
+    borderRadius: 3,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
@@ -1003,16 +1089,17 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   energyText: {
-    fontSize: 12,
+    fontSize: 10,
     fontFamily: 'Blockblueprint',
     color: '#B0B0B0',
-    marginTop: 4,
+    marginTop: 3,
   },
   vsContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 20,
-    marginVertical: 20,
+    marginHorizontal: 10,
+    alignSelf: 'center',
   },
   vsText: {
     fontSize: 28,
@@ -1033,32 +1120,52 @@ const styles = StyleSheet.create({
   cardsContainer: {
     paddingHorizontal: 10,
   },
+  cardsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+  },
   battleCard: {
-    marginRight: 12,
     borderRadius: 16,
     overflow: 'hidden',
-    width: 100,
+    width: '48%',
+    marginBottom: 12,
+  },
+  cardLeft: {
+    marginRight: '2%',
+  },
+  cardRight: {
+    marginLeft: '2%',
+  },
+  cardFullWidth: {
+    width: '100%',
+    marginLeft: 0,
+    marginRight: 0,
   },
   cardDisabled: {
     opacity: 0.5,
   },
   cardGradient: {
-    padding: 16,
+    padding: 12,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 16
+    borderRadius: 16,
+    minHeight: 120,
+    justifyContent: 'space-between',
   },
   cardEmoji: {
-    fontSize: 28,
-    marginBottom: 8,
+    fontSize: 24,
+    marginBottom: 6,
   },
   cardName: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'Blockblueprint',
     color: '#FFFFFF',
     marginBottom: 4,
     textAlign: 'center',
+    lineHeight: 14,
   },
   cardPower: {
     fontSize: 11,
@@ -1077,16 +1184,18 @@ const styles = StyleSheet.create({
   },
   battleLogContainer: {
     flex: 1,
-    margin: 20,
+    marginHorizontal: 20,
     borderRadius: 16,
     overflow: 'hidden',
     maxHeight: 120,
+    paddingHorizontal: 10
   },
   battleLog: {
     flex: 1,
     padding: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 16
   },
   logText: {
     fontSize: 12,
@@ -1156,5 +1265,78 @@ const styles = StyleSheet.create({
     color: '#00ff96',
     marginTop: 2,
     opacity: 0.8,
+  },
+  storedMovesContainer: {
+    backgroundColor: 'rgba(0, 255, 150, 0.1)',
+    paddingHorizontal: 5,
+    marginHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 150, 0.3)',
+  },
+  storedMovesText: {
+    fontSize: 14,
+    fontFamily: 'Blockblueprint',
+    color: '#00ff96',
+    textAlign: 'center',
+  },
+  loadingContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 20,
+    paddingVertical: 40,
+    borderRadius: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  loadingText: {
+    fontSize: 16,
+    fontFamily: 'Blockblueprint',
+    color: Colors.primary,
+    textAlign: 'center',
+  },
+  noOpponentsText: {
+    fontSize: 16,
+    fontFamily: 'Blockblueprint',
+    color: '#ff6b6b',
+    textAlign: 'center',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  loadingTitle: {
+    fontSize: 24,
+    fontFamily: 'Blockblueprint',
+    color: '#FFFFFF',
+    marginTop: 20,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  loadingMessage: {
+    fontSize: 16,
+    fontFamily: 'Blockblueprint',
+    color: Colors.primary,
+    marginBottom: 10,
+    textAlign: 'center',
+    paddingHorizontal: 40,
+    lineHeight: 24,
+  },
+  loadingSubtext: {
+    fontSize: 14,
+    fontFamily: 'Blockblueprint',
+    color: '#B0B0B0',
+    textAlign: 'center',
+    paddingHorizontal: 40,
   },
 }); 

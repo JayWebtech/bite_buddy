@@ -52,6 +52,11 @@ pub trait IBiteBuddy<TContractState> {
         challenger_cards: Array<u8>,
         session_signature: Array<felt252>,
     );
+    fn execute_complete_battle(
+        ref self: TContractState,
+        battle_id: u256,
+        challenger_moves: Array<u8>,
+    ) -> u256;
     fn get_battle(self: @TContractState, battle_id: u256) -> Battle;
 
     // Computer Opponents

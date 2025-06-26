@@ -1,5 +1,5 @@
 #[starknet::contract]
-pub mod BiteBuddyV4 {
+pub mod BiteBuddyV6 {
     use openzeppelin::access::ownable::OwnableComponent;
     use openzeppelin::introspection::src5::SRC5Component;
     use openzeppelin::token::erc721::{ERC721Component, ERC721HooksEmptyImpl};
@@ -68,6 +68,7 @@ pub mod BiteBuddyV4 {
         PetMinted: PetMinted,
         MealScanned: MealScanned,
         PetEvolved: PetEvolved,
+        BattleInitiated: BattleInitiated,
         BattleCompleted: BattleCompleted,
         SessionKeyCreated: SessionKeyCreated,
         ComputerOpponentAdded: ComputerOpponentAdded,
@@ -94,6 +95,15 @@ pub mod BiteBuddyV4 {
         pet_id: u256,
         old_evolution_stage: u8,
         new_evolution_stage: u8,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct BattleInitiated {
+        battle_id: u256,
+        challenger_pet: u256,
+        defender_pet: u256,
+        challenger_owner: ContractAddress,
+        is_computer_opponent: bool,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -408,6 +418,17 @@ pub mod BiteBuddyV4 {
             self.battles.write(battle_id, battle);
             self.next_battle_id.write(battle_id + 1);
 
+            // Emit battle initiated event
+            self.emit(
+                BattleInitiated {
+                    battle_id,
+                    challenger_pet,
+                    defender_pet: 1000 + computer_opponent_id.into(),
+                    challenger_owner: caller,
+                    is_computer_opponent: true,
+                }
+            );
+
             battle_id
         }
 
@@ -438,6 +459,17 @@ pub mod BiteBuddyV4 {
 
             self.battles.write(battle_id, battle);
             self.next_battle_id.write(battle_id + 1);
+
+            // Emit battle initiated event
+            self.emit(
+                BattleInitiated {
+                    battle_id,
+                    challenger_pet,
+                    defender_pet,
+                    challenger_owner: caller,
+                    is_computer_opponent: false,
+                }
+            );
 
             battle_id
         }
@@ -485,6 +517,48 @@ pub mod BiteBuddyV4 {
                         is_computer_opponent,
                     },
                 );
+        }
+
+        fn execute_complete_battle(
+            ref self: ContractState,
+            battle_id: u256,
+            challenger_moves: Array<u8>,
+        ) -> u256 {
+            let caller = get_caller_address();
+            let mut battle = self.battles.read(battle_id);
+            
+            // Validate battle state
+            assert(battle.battle_id != 0, 'Battle not found');
+            assert(!battle.completed, 'Battle already completed');
+            
+            // Validate ownership
+            let challenger = self.pets.read(battle.challenger_pet);
+            assert(challenger.owner == caller, 'Not battle owner');
+            
+            // Execute complete battle with all moves at once
+            let winner_pet = self._execute_complete_battle_logic(battle, challenger_moves);
+            
+            // Update battle result
+            battle.winner = winner_pet;
+            battle.completed = true;
+            self.battles.write(battle_id, battle);
+            
+            let is_computer_opponent = battle.defender_pet >= 1000;
+            
+            self.emit(
+                BattleCompleted {
+                    battle_id,
+                    winner_pet,
+                    loser_pet: if winner_pet == battle.challenger_pet {
+                        battle.defender_pet
+                    } else {
+                        battle.challenger_pet
+                    },
+                    is_computer_opponent,
+                }
+            );
+            
+            winner_pet
         }
 
         fn get_battle(self: @ContractState, battle_id: u256) -> Battle {
@@ -944,6 +1018,109 @@ pub mod BiteBuddyV4 {
                 updated_challenger.energy -= 20;
                 self.pets.write(battle.challenger_pet, updated_challenger);
 
+                battle.defender_pet
+            };
+
+            winner
+        }
+
+        fn _execute_complete_battle_logic(
+            ref self: ContractState, 
+            battle: Battle, 
+            challenger_moves: Array<u8>
+        ) -> u256 {
+            let challenger = self.pets.read(battle.challenger_pet);
+            
+            let winner = if battle.defender_pet >= 1000 {
+                // Computer opponent battle
+                let computer_opponent_id = (battle.defender_pet - 1000).try_into().unwrap();
+                let defender = self.computer_opponents.read(computer_opponent_id);
+                self._execute_complete_computer_battle(challenger, defender, battle, challenger_moves)
+            } else {
+                // Player vs player battle - for now, use simplified logic
+                let defender = self.pets.read(battle.defender_pet);
+                self._execute_player_battle(challenger, defender, battle)
+            };
+
+            winner
+        }
+
+        fn _execute_complete_computer_battle(
+            ref self: ContractState,
+            challenger: Pet,
+            defender: Pet,
+            battle: Battle,
+            challenger_moves: Array<u8>
+        ) -> u256 {
+            // Validate moves array length (should be reasonable, e.g., max 10 moves)
+            assert(challenger_moves.len() <= 10, 'Too many moves');
+            assert(challenger_moves.len() > 0, 'No moves provided');
+            
+            // Calculate total move power and validate moves
+            let mut total_move_power = 0;
+            let mut i = 0;
+            while i < challenger_moves.len() {
+                let move_index = *challenger_moves.at(i);
+                assert(move_index < 5, 'Invalid move index'); // 0-4 for 5 available cards
+                
+                // Add move power based on card type (simplified)
+                total_move_power += match move_index {
+                    0 => 30, // Quick Strike
+                    1 => 50, // Power Slam
+                    2 => 25, // Shield Up
+                    3 => 40, // Heal
+                    4 => 50, // Energy Boost
+                    _ => 0,
+                };
+                i += 1;
+            };
+            
+            // Enhanced battle calculation considering moves
+            let challenger_base_power = self._calculate_battle_power(challenger);
+            let defender_power = self._calculate_battle_power(defender);
+            
+            // Add move power bonus to challenger
+            let enhanced_challenger_power = challenger_base_power + total_move_power.into();
+            
+            // Apply dynamic difficulty scaling
+            let (adjusted_challenger_power, adjusted_defender_power) = self._apply_dynamic_difficulty(
+                enhanced_challenger_power, defender_power, challenger.level
+            );
+            
+            // Calculate win probability
+            let win_probability = self._calculate_win_probability(
+                adjusted_challenger_power, adjusted_defender_power
+            );
+            
+            // Generate pseudo-random number
+            let random_seed = self._generate_battle_random(battle.battle_id, battle.timestamp);
+            let random_chance = random_seed % 100;
+            
+            let winner = if random_chance < win_probability {
+                // Player wins
+                let mut updated_challenger = challenger;
+                updated_challenger.battle_wins += 1;
+                updated_challenger.energy -= 20;
+                
+                // Enhanced XP gain based on moves used
+                let base_xp = self._calculate_xp_gain(challenger.level, defender.level, true);
+                let move_bonus_xp = (challenger_moves.len().into() * 5); // 5 XP per move
+                updated_challenger.experience += base_xp + move_bonus_xp;
+                
+                self.pets.write(battle.challenger_pet, updated_challenger);
+                battle.challenger_pet
+            } else {
+                // Computer wins
+                let mut updated_challenger = challenger;
+                updated_challenger.battle_losses += 1;
+                updated_challenger.energy -= 20;
+                
+                // Consolation XP with smaller move bonus
+                let base_xp = self._calculate_xp_gain(challenger.level, defender.level, false);
+                let move_bonus_xp = (challenger_moves.len().into() * 2); // 2 XP per move when losing
+                updated_challenger.experience += base_xp + move_bonus_xp;
+                
+                self.pets.write(battle.challenger_pet, updated_challenger);
                 battle.defender_pet
             };
 
