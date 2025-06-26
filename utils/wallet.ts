@@ -635,27 +635,30 @@ export class BiteBuddyWallet {
 
       console.log('Feeding pet with meal data:', mealData);
 
-      console.log("meal data type", typeof mealData.calories, typeof mealData.protein, typeof mealData.carbs, typeof mealData.fats, typeof mealData.vitamins, typeof mealData.minerals, typeof mealData.fiber, typeof mealData.ipfs_image_uri, typeof mealData.meal_hash, typeof mealData.pet_id, typeof mealData.ipfs_image_uri, typeof mealData.pet_id)
+      const petId = BigInt(mealData?.pet_id || 0);
+      const low = petId & BigInt('0xffffffffffffffffffffffffffffffff');
+      const high = petId >> BigInt(128);
 
       const calls: Call[] = [
         {
           entrypoint: 'scan_and_feed_meal',
           contractAddress: Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR,
           calldata: [
-            mealData.pet_id,           // pet_id: u256
+            low.toString(),           // pet_id: u256
+            high.toString(),
             shortString.encodeShortString(mealData.meal_hash),                   // meal_hash: felt252
-            mealData.calories,         // calories: u16
-            mealData.protein,          // protein: u8
-            mealData.carbs,            // carbs: u8
-            mealData.fats,             // fats: u8
-            mealData.vitamins,         // vitamins: u8
-            mealData.minerals,         // minerals: u8
-            mealData.fiber,            // fiber: u8
+            mealData.calories.toString(),         // calories: u16
+            mealData.protein.toString(),          // protein: u8
+            mealData.carbs.toString(),            // carbs: u8
+            mealData.fats.toString(),             // fats: u8
+            mealData.vitamins.toString(),         // vitamins: u8
+            mealData.minerals.toString(),         // minerals: u8
+            mealData.fiber.toString(),            // fiber: u8
             byteArray.byteArrayFromString(mealData.ipfs_image_uri)
           ],
         },
       ];
-      
+
 
       console.log('Contract call data:', calls[0].calldata);
 
