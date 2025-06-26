@@ -25,7 +25,7 @@ pub trait IBiteBuddy<TContractState> {
         ipfs_image_uri: ByteArray,
     ) -> u256;
     fn get_meal(self: @TContractState, meal_id: u256) -> Meal;
-    fn get_meals_by_pet(self: @TContractState, pet_id: u256) -> Array<u256>;
+    fn get_meals_by_pet(self: @TContractState, pet_id: u256) -> Meal;
 
     // Session Key System
     fn create_session_key(

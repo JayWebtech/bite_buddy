@@ -2,7 +2,7 @@ use starknet::ContractAddress;
 use starknet::contract_address_const;
 use snforge_std::{declare, ContractClassTrait, DeclareResultTrait, start_cheat_caller_address, start_cheat_block_timestamp, stop_cheat_caller_address, stop_cheat_block_timestamp};
 use contracts::interface::IBiteBuddy::{IBiteBuddy, IBiteBuddyDispatcher, IBiteBuddyDispatcherTrait};
-use contracts::BiteBuddy::BiteBuddyV2;
+use contracts::BiteBuddy::BiteBuddyV3;
 use contracts::base::structs::{Pet, Meal};
 use contracts::base::constants::{
     SPECIES_VEGGIE_FLUFFY, SPECIES_PROTEIN_SPARKLE, SPECIES_BALANCE_THUNDER, 

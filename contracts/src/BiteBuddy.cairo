@@ -1,5 +1,5 @@
 #[starknet::contract]
-pub mod BiteBuddyV2 {
+pub mod BiteBuddyV3 {
     use openzeppelin::access::ownable::OwnableComponent;
     use openzeppelin::introspection::src5::SRC5Component;
     use openzeppelin::token::erc721::{ERC721Component, ERC721HooksEmptyImpl};
@@ -300,18 +300,12 @@ pub mod BiteBuddyV2 {
             self.meals.read(meal_id)
         }
 
-        fn get_meals_by_pet(self: @ContractState, pet_id: u256) -> Array<u256> {
-            let mut meals = ArrayTrait::new();
+        fn get_meals_by_pet(self: @ContractState, pet_id: u256) -> Meal {
             let count = self.pet_meal_count.read(pet_id);
-            let mut i = 0;
+            assert(count > 0, 'No meals found');
 
-            while i != count {
-                let meal_id = self.pet_meals.read((pet_id, i));
-                meals.append(meal_id);
-                i += 1;
-            }
-
-            meals
+            let meal_id = self.pet_meals.read((pet_id, 0));
+            self.meals.read(meal_id)
         }
 
         fn create_session_key(

@@ -702,6 +702,45 @@ export class BiteBuddyWallet {
       console.log('Error clearing data:', error);
     }
   }
+
+  // Get meals by pet ID from contract
+  async getMealsByPet(petId: string): Promise<any[]> {
+    try {
+      const walletInfo = await this.getWalletInfo();
+      
+      if (!walletInfo?.OZcontractAddress) {
+        throw new Error('No wallet address found');
+      }
+
+      // Convert pet ID to u256 format (low, high)
+      const petIdBigInt = BigInt(petId);
+      const low = petIdBigInt & BigInt('0xffffffffffffffffffffffffffffffff');
+      const high = petIdBigInt >> BigInt(128);
+
+      const call = {
+        contractAddress: Constants.expoConfig?.extra?.BITEBUDDY_CONTRACT_ADDR,
+        entrypoint: 'get_meals_by_pet',
+        calldata: [low.toString(), high.toString()],
+      };
+
+      console.log('Getting meals for pet ID:', petId, 'calldata:', call.calldata);
+
+      const result = await this.provider.callContract(call);
+      console.log("Raw meals response:", result);
+      
+      if (!result || result.length === 0) {
+        console.log('No meals found for pet');
+        return [];
+      }
+
+      // Parse the meals array - this will depend on your contract's return format
+      // For now, return the raw result for debugging
+      return result;
+    } catch (error) {
+      console.log('Error fetching meals by pet:', error);
+      return [];
+    }
+  }
 }
 
 // Export singleton instance
