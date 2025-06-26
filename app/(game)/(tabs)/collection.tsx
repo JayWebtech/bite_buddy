@@ -2,6 +2,7 @@ import { MintPetPrompt } from '@/components/ui/MintPetPrompt';
 import { Colors, getRarityColor } from '@/constants/Colors';
 import { walletManager } from '@/utils/wallet';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Alert, Dimensions, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -265,17 +266,27 @@ export default function CollectionScreen() {
     <View style={styles.gridContainer}>
       {mealNFTs.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyEmoji}>🍽️</Text>
-          <Text style={styles.emptyTitle}>No Meal NFTs Yet</Text>
-          <Text style={styles.emptyDescription}>
-            Start feeding your pet to collect meal NFTs!
-          </Text>
-          <TouchableOpacity 
-            style={styles.emptyButton}
-            onPress={() => router.push('/(game)/(tabs)/scan')}
+          <LinearGradient
+            colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+            style={styles.glassEmptyCard}
           >
-            <Text style={styles.emptyButtonText}>📸 Scan Food</Text>
-          </TouchableOpacity>
+            <Text style={styles.emptyEmoji}>🍽️</Text>
+            <Text style={styles.emptyTitle}>No Meal NFTs Yet</Text>
+            <Text style={styles.emptyDescription}>
+              Start feeding your pet to collect meal NFTs!
+            </Text>
+            <TouchableOpacity 
+              style={styles.glassEmptyButton}
+              onPress={() => router.push('/(game)/(tabs)/scan')}
+            >
+              <LinearGradient
+                colors={[Colors.primary, '#00A868']}
+                style={styles.glassButtonGradient}
+              >
+                <Text style={styles.emptyButtonText}>📸 Scan Food</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </LinearGradient>
         </View>
       ) : (
         <>
@@ -288,52 +299,91 @@ export default function CollectionScreen() {
             {mealNFTs.map((meal) => (
               <TouchableOpacity
                 key={meal.id}
-                style={[styles.mealCard, { borderColor: getRarityColor(meal.rarity) }]}
+                style={styles.glassMealCard}
                 onPress={() => handleMealNFTPress(meal)}
               >
-                <View style={[styles.rarityBadge, { backgroundColor: getRarityColor(meal.rarity) }]}>
-                  <Text style={styles.rarityText}>{meal.rarity}</Text>
-                </View>
-                
-                {meal.ipfs_image_uri ? (
-                  <Image
-                    source={{ uri: meal.ipfs_image_uri }}
-                    style={styles.mealImage}
-                    contentFit="cover"
+                <LinearGradient
+                  colors={[
+                    'rgba(255, 255, 255, 0.15)',
+                    'rgba(255, 255, 255, 0.05)',
+                    'rgba(255, 255, 255, 0.1)'
+                  ]}
+                  style={styles.glassCardGradient}
+                >
+                  {/* Glow effect border */}
+                  <View style={[styles.glowBorder, { 
+                    shadowColor: getRarityColor(meal.rarity),
+                    borderColor: getRarityColor(meal.rarity) 
+                  }]} />
+                  
+                  {/* Rarity badge */}
+                  <LinearGradient
+                    colors={[getRarityColor(meal.rarity), `${getRarityColor(meal.rarity)}80`]}
+                    style={styles.glassRarityBadge}
+                  >
+                    <Text style={styles.rarityText}>{meal.rarity}</Text>
+                  </LinearGradient>
+                  
+                  {/* Image container with glow */}
+                  <View style={styles.glassImageContainer}>
+                    {meal.ipfs_image_uri ? (
+                      <View style={styles.imageGlowWrapper}>
+                        <View style={[styles.imageGlow, { backgroundColor: getRarityColor(meal.rarity) }]} />
+                        <Image
+                          source={{ uri: meal.ipfs_image_uri }}
+                          style={styles.glassMealImage}
+                          contentFit="cover"
+                        />
+                      </View>
+                    ) : (
+                      <View style={styles.glassMealImagePlaceholder}>
+                        <Text style={styles.mealEmoji}>🍽️</Text>
+                      </View>
+                    )}
+                  </View>
+                  
+                  {/* Card content */}
+                  <View style={styles.glassCardContent}>
+                    <Text style={styles.glassMealName}>#{meal.id}</Text>
+                    <Text style={styles.glassMealHash}>{meal.meal_hash.substring(0, 8)}...</Text>
+                    
+                    {/* Grade badge with glow */}
+                    <View style={styles.glassGradeBadgeContainer}>
+                      <LinearGradient
+                        colors={[getGradeColor(meal.grade), `${getGradeColor(meal.grade)}80`]}
+                        style={styles.glassGradeBadge}
+                      >
+                        <Text style={styles.gradeText}>{meal.grade}</Text>
+                      </LinearGradient>
+                    </View>
+                    
+                    {/* Stats with glass effect */}
+                    <View style={styles.glassStatsContainer}>
+                      <View style={styles.glassStat}>
+                        <Text style={styles.glassStatEmoji}>🔥</Text>
+                        <Text style={styles.glassStatValue}>{meal.calories}</Text>
+                      </View>
+                      <View style={styles.glassStat}>
+                        <Text style={styles.glassStatEmoji}>💪</Text>
+                        <Text style={styles.glassStatValue}>{meal.protein}%</Text>
+                      </View>
+                      <View style={styles.glassStat}>
+                        <Text style={styles.glassStatEmoji}>🌾</Text>
+                        <Text style={styles.glassStatValue}>{meal.carbs}%</Text>
+                      </View>
+                    </View>
+                    
+                    <Text style={styles.glassMealTime}>{formatTimeAgo(meal.timestamp)}</Text>
+                  </View>
+                  
+                  {/* Shine effect */}
+                  <LinearGradient
+                    colors={['transparent', 'rgba(255, 255, 255, 0.3)', 'transparent']}
+                    style={styles.cardShine}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
                   />
-                ) : (
-                  <View style={styles.mealImagePlaceholder}>
-                    <Text style={styles.mealEmoji}>🍽️</Text>
-                  </View>
-                )}
-                
-                <Text style={styles.mealName}>#{meal.id}</Text>
-                <Text style={styles.mealHash}>{meal.meal_hash.substring(0, 8)}...</Text>
-                
-                <View style={[styles.gradeBadge, { backgroundColor: getGradeColor(meal.grade) }]}>
-                  <Text style={styles.gradeText}>{meal.grade}</Text>
-                </View>
-                
-                <View style={styles.mealStats}>
-                  <View style={styles.statMini}>
-                    <Text style={styles.statMiniLabel}>🔥</Text>
-                    <Text style={styles.statMiniValue}>{meal.calories}</Text>
-                  </View>
-                  <View style={styles.statMini}>
-                    <Text style={styles.statMiniLabel}>💪</Text>
-                    <Text style={styles.statMiniValue}>{meal.protein}%</Text>
-                  </View>
-                  <View style={styles.statMini}>
-                    <Text style={styles.statMiniLabel}>🌾</Text>
-                    <Text style={styles.statMiniValue}>{meal.carbs}%</Text>
-                  </View>
-                  <View style={styles.statMini}>
-                    <Text style={styles.statMiniLabel}>🥑</Text>
-                    <Text style={styles.statMiniValue}>{meal.fats}%</Text>
-                  </View>
-                </View>
-                
-                <Text style={styles.mealTime}>{formatTimeAgo(meal.timestamp)}</Text>
+                </LinearGradient>
               </TouchableOpacity>
             ))}
           </View>
@@ -607,23 +657,82 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 10,
   },
-  mealCard: {
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 2,
-    position: 'relative',
-    width: (width - 60) / 2,
-    height: 220, // Fixed height to accommodate image
+  glassEmptyCard: {
+    padding: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  rarityBadge: {
+  glassEmptyButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  glassButtonGradient: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  glassMealCard: {
+    backgroundColor: 'transparent',
+    borderRadius: 16,
+    marginBottom: 16,
+    width: (width - 60) / 2,
+    height: 280,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  glassCardGradient: {
+    flex: 1,
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    overflow: 'hidden',
+  },
+  glowBorder: {
+    position: 'absolute',
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderWidth: 2,
+    borderRadius: 18,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  glassRarityBadge: {
     position: 'absolute',
     top: 8,
     right: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   rarityText: {
     fontSize: 10,
@@ -636,73 +745,144 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
   },
-  mealName: {
-    fontSize: 14,
-    fontFamily: 'Blockblueprint',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 8,
-    minHeight: 32,
+  glassImageContainer: {
+    width: '100%',
+    height: 100,
+    borderRadius: 12,
+    marginBottom: 12,
+    overflow: 'hidden',
   },
-  mealHash: {
-    fontSize: 14,
-    fontFamily: 'Blockblueprint',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 8,
+  imageGlowWrapper: {
+    flex: 1,
+    borderRadius: 12,
+    position: 'relative',
   },
-  gradeBadge: {
-    alignSelf: 'center',
-    width: 24,
-    height: 24,
+  imageGlow: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    borderRadius: 16,
+    opacity: 0.3,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  glassMealImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  glassMealImagePlaceholder: {
+    width: '100%',
+    height: '100%',
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  glassCardContent: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  glassMealName: {
+    fontSize: 16,
+    fontFamily: 'Blockblueprint',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  glassMealHash: {
+    fontSize: 12,
+    fontFamily: 'Blockblueprint',
+    color: '#B0B0B0',
+    textAlign: 'center',
     marginBottom: 8,
   },
+  glassGradeBadgeContainer: {
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  glassGradeBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
   gradeText: {
-    fontSize: 12,
+    fontSize: 14,
     fontFamily: 'Blockblueprint',
     color: '#FFFFFF',
     fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
-  mealStats: {
+  glassStatsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginBottom: 8,
+    paddingHorizontal: 4,
   },
-  statMini: {
+  glassStat: {
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 8,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    minWidth: 35,
   },
-  statMiniLabel: {
-    fontSize: 12,
+  glassStatEmoji: {
+    fontSize: 14,
+    marginBottom: 2,
   },
-  statMiniValue: {
+  glassStatValue: {
     fontSize: 10,
     fontFamily: 'Blockblueprint',
     color: Colors.primary,
     fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
-  mealTime: {
+  glassMealTime: {
     fontSize: 10,
     fontFamily: 'Blockblueprint',
     color: '#8A8A8A',
     textAlign: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  mealImage: {
-    width: '100%',
-    height: 80,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  mealImagePlaceholder: {
-    width: '100%',
-    height: 80,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.darkCard,
-    marginBottom: 8,
+  cardShine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 16,
+    opacity: 0.6,
   },
 
   // Pet Collection
