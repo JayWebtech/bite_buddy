@@ -9,27 +9,19 @@ import { Alert, Dimensions, RefreshControl, ScrollView, StyleSheet, Text, Toucha
 const { width } = Dimensions.get('window');
 
 interface MealNFT {
-  id: number;
-  foodName: string;
-  emoji: string;
-  energyValue: number;
-  hungerValue: number;
-  happinessValue: number;
-  healthScore: number;
+  id: string;
+  meal_hash: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+  vitamins: number;
+  minerals: number;
+  fiber: number;
+  ipfs_image_uri: string;
   timestamp: number;
   rarity: 'Common' | 'Rare' | 'Epic' | 'Legendary';
   grade: string;
-}
-
-interface Achievement {
-  id: number;
-  title: string;
-  description: string;
-  emoji: string;
-  isUnlocked: boolean;
-  progress: number;
-  maxProgress: number;
-  rarity: 'Common' | 'Rare' | 'Epic' | 'Legendary';
 }
 
 interface PetCollectionItem {
@@ -42,93 +34,10 @@ interface PetCollectionItem {
   rarity: 'Common' | 'Rare' | 'Epic' | 'Legendary';
 }
 
-// Mock data - in real implementation this would come from blockchain
-const mockMealNFTs: MealNFT[] = [
-  {
-    id: 1,
-    foodName: 'Grilled Salmon',
-    emoji: '🍣',
-    energyValue: 85,
-    hungerValue: 90,
-    happinessValue: 80,
-    healthScore: 95,
-    timestamp: Date.now() - 3600000,
-    rarity: 'Legendary',
-    grade: 'S'
-  },
-  {
-    id: 2,
-    foodName: 'Fresh Salad',
-    emoji: '🥗',
-    energyValue: 70,
-    hungerValue: 60,
-    happinessValue: 65,
-    healthScore: 90,
-    timestamp: Date.now() - 7200000,
-    rarity: 'Epic',
-    grade: 'A'
-  },
-  {
-    id: 3,
-    foodName: 'Pizza Slice',
-    emoji: '🍕',
-    energyValue: 60,
-    hungerValue: 75,
-    happinessValue: 85,
-    healthScore: 40,
-    timestamp: Date.now() - 86400000,
-    rarity: 'Common',
-    grade: 'C'
-  },
-];
-
-const achievements: Achievement[] = [
-  {
-    id: 1,
-    title: 'First Meal',
-    description: 'Feed your pet for the first time',
-    emoji: '🍽️',
-    isUnlocked: true,
-    progress: 1,
-    maxProgress: 1,
-    rarity: 'Common'
-  },
-  {
-    id: 2,
-    title: 'Healthy Eater',
-    description: 'Feed your pet 10 healthy meals',
-    emoji: '🥗',
-    isUnlocked: false,
-    progress: 3,
-    maxProgress: 10,
-    rarity: 'Rare'
-  },
-  {
-    id: 3,
-    title: 'Gourmet Chef',
-    description: 'Collect 5 legendary meal NFTs',
-    emoji: '👨‍🍳',
-    isUnlocked: false,
-    progress: 1,
-    maxProgress: 5,
-    rarity: 'Epic'
-  },
-  {
-    id: 4,
-    title: 'Pet Master',
-    description: 'Reach level 10 with your pet',
-    emoji: '🏆',
-    isUnlocked: false,
-    progress: 0,
-    maxProgress: 1,
-    rarity: 'Legendary'
-  },
-];
-
 export default function CollectionScreen() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'meals' | 'achievements' | 'pets'>('meals');
-  const [mealNFTs, setMealNFTs] = useState<MealNFT[]>(mockMealNFTs);
+  const [activeTab, setActiveTab] = useState<'meals' | 'pets'>('meals');
+  const [mealNFTs, setMealNFTs] = useState<MealNFT[]>([]);
   const [petCollection, setPetCollection] = useState<PetCollectionItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -140,25 +49,181 @@ export default function CollectionScreen() {
   const loadCollectionData = async () => {
     try {
       setIsLoading(true);
+      
       // Load pet data from contract
       const petData = await walletManager.getPet();
       if (petData) {
         const petItem: PetCollectionItem = {
           id: petData.id?.toString() || '1',
           name: petData.name || 'Unknown Pet',
-          type: petData.pet_type || 'Dragon Pup',
+          type: petData.name || 'Dragon Pup',
           level: petData.level || 1,
-          totalMeals: petData.total_meals || 0,
-          created_at: petData.created_at || Date.now(),
+          totalMeals: 0, // Will be updated from meals count
+          created_at: Date.now(),
           rarity: getPetRarity(petData.level || 1)
         };
         setPetCollection([petItem]);
+
+        // Load meal NFTs for this pet
+        await loadMealNFTs(petData.id?.toString() || '1');
       }
     } catch (error) {
       console.error('Error loading collection data:', error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const loadMealNFTs = async (petId: string) => {
+    try {
+      console.log('Loading meals for pet ID:', petId);
+      const mealsData = await walletManager.getMealsByPet(petId);
+      console.log('Received meals data:', mealsData);
+      
+      if (mealsData && mealsData.length > 0) {
+        // Parse the meals data from contract response
+        const parsedMeals = parseMealsFromContract(mealsData);
+        setMealNFTs(parsedMeals);
+        
+        // Update pet's total meals count
+        setPetCollection(prev => prev.map(pet => ({
+          ...pet,
+          totalMeals: parsedMeals.length
+        })));
+      } else {
+        setMealNFTs([]);
+      }
+    } catch (error) {
+      console.error('Error loading meal NFTs:', error);
+      setMealNFTs([]);
+    }
+  };
+
+  const parseMealsFromContract = (contractData: any[]): MealNFT[] => {
+    console.log('Parsing meals from contract data:', contractData);
+    
+    const meals: MealNFT[] = [];
+    
+    try {
+      // The contract response appears to be a single meal with the following structure:
+      // Based on the response, it looks like:
+      // [0] = meal_id low (0x1)
+      // [1] = meal_id high (0x0) 
+      // [2] = pet_id low (0x1)
+      // [3] = pet_id high (0x0)
+      // [4] = meal_hash (0x71d20550e5d24d4a8400af96863b731b44365994776241c17b4f7ff867c5aae)
+      // [5] = calories (0xb4 = 180)
+      // [6] = protein (0x5 = 5)
+      // [7] = carbs (0x50 = 80)
+      // [8] = fats (0xf = 15)
+      // [9] = vitamins (0x5 = 5)
+      // [10] = minerals (0xa = 10)
+      // [11] = fiber (0x2 = 2)
+      // [12] = timestamp (0x2b = 43)
+      // [13] = IPFS URI length (0x4)
+      // [14] = IPFS timestamp (0x685c900b)
+      // [15-19] = IPFS URI parts (hex encoded)
+
+      if (contractData.length >= 15) {
+        // Parse meal ID (u256)
+        const mealIdLow = parseInt(contractData[0], 16);
+        const mealIdHigh = parseInt(contractData[1], 16);
+        const mealId = mealIdLow + (mealIdHigh << 128);
+
+        // Parse meal hash (felt252)
+        const mealHash = contractData[4];
+
+        // Parse nutrition values
+        const calories = parseInt(contractData[5], 16);
+        const protein = parseInt(contractData[6], 16);
+        const carbs = parseInt(contractData[7], 16);
+        const fats = parseInt(contractData[8], 16);
+        const vitamins = parseInt(contractData[9], 16);
+        const minerals = parseInt(contractData[10], 16);
+        const fiber = parseInt(contractData[11], 16);
+
+        // Parse timestamp
+        const timestamp = parseInt(contractData[12], 16) * 1000; // Convert to milliseconds
+
+        // Parse IPFS URI - it appears to be split across multiple hex values
+        let ipfsUri = '';
+        try {
+          // Combine the IPFS URI parts (indices 15-19)
+          const ipfsParts = contractData.slice(15, 20);
+          for (const part of ipfsParts) {
+            if (part && part !== '0x0') {
+              // Convert hex to string
+              const hexString = part.startsWith('0x') ? part.slice(2) : part;
+              // Simple hex to string conversion for React Native
+              let decoded = '';
+              for (let i = 0; i < hexString.length; i += 2) {
+                const hexPair = hexString.substr(i, 2);
+                const charCode = parseInt(hexPair, 16);
+                if (charCode > 0) { // Only add valid characters
+                  decoded += String.fromCharCode(charCode);
+                }
+              }
+              ipfsUri += decoded;
+            }
+          }
+        } catch (error) {
+          console.log('Error parsing IPFS URI:', error);
+          ipfsUri = '';
+        }
+
+        console.log('Parsed meal data:', {
+          mealId,
+          mealHash,
+          calories,
+          protein,
+          carbs,
+          fats,
+          vitamins,
+          minerals,
+          fiber,
+          timestamp,
+          ipfsUri
+        });
+
+        const meal: MealNFT = {
+          id: mealId.toString(),
+          meal_hash: mealHash,
+          calories: calories,
+          protein: protein,
+          carbs: carbs,
+          fats: fats,
+          vitamins: vitamins,
+          minerals: minerals,
+          fiber: fiber,
+          ipfs_image_uri: ipfsUri,
+          timestamp: timestamp,
+          rarity: getMealRarity(calories),
+          grade: getMealGrade(calories)
+        };
+
+        meals.push(meal);
+      }
+    } catch (error) {
+      console.error('Error parsing meals:', error);
+    }
+    
+    console.log('Parsed meals:', meals);
+    return meals;
+  };
+
+  const getMealRarity = (calories: number): 'Common' | 'Rare' | 'Epic' | 'Legendary' => {
+    if (calories >= 400) return 'Legendary';
+    if (calories >= 300) return 'Epic';
+    if (calories >= 200) return 'Rare';
+    return 'Common';
+  };
+
+  const getMealGrade = (calories: number): string => {
+    if (calories >= 400) return 'S';
+    if (calories >= 300) return 'A';
+    if (calories >= 200) return 'B';
+    if (calories >= 100) return 'C';
+    return 'D';
   };
 
   const onRefresh = async () => {
@@ -187,9 +252,12 @@ export default function CollectionScreen() {
 
   const handleMealNFTPress = (meal: MealNFT) => {
     Alert.alert(
-      `${meal.foodName} NFT`,
-      `Grade: ${meal.grade}\nRarity: ${meal.rarity}\n\nNutrition Stats:\n• Energy: ${meal.energyValue}\n• Hunger: ${meal.hungerValue}\n• Happiness: ${meal.happinessValue}\n• Health: ${meal.healthScore}`,
-      [{ text: 'OK' }]
+      `Meal NFT #${meal.id}`,
+      `Hash: ${meal.meal_hash.substring(0, 10)}...\nRarity: ${meal.rarity}\n\nNutrition Profile:\n• Calories: ${meal.calories}\n• Protein: ${meal.protein}%\n• Carbs: ${meal.carbs}%\n• Fats: ${meal.fats}%\n• Vitamins: ${meal.vitamins}%\n• Minerals: ${meal.minerals}%\n• Fiber: ${meal.fiber}%\n\nIPFS: ${meal.ipfs_image_uri ? 'Available' : 'Not available'}`,
+      [
+        { text: 'View on IPFS', onPress: () => meal.ipfs_image_uri && console.log('Open IPFS:', meal.ipfs_image_uri) },
+        { text: 'OK' }
+      ]
     );
   };
 
@@ -227,8 +295,20 @@ export default function CollectionScreen() {
                   <Text style={styles.rarityText}>{meal.rarity}</Text>
                 </View>
                 
-                <Text style={styles.mealEmoji}>{meal.emoji}</Text>
-                <Text style={styles.mealName}>{meal.foodName}</Text>
+                {meal.ipfs_image_uri ? (
+                  <Image
+                    source={{ uri: meal.ipfs_image_uri }}
+                    style={styles.mealImage}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View style={styles.mealImagePlaceholder}>
+                    <Text style={styles.mealEmoji}>🍽️</Text>
+                  </View>
+                )}
+                
+                <Text style={styles.mealName}>#{meal.id}</Text>
+                <Text style={styles.mealHash}>{meal.meal_hash.substring(0, 8)}...</Text>
                 
                 <View style={[styles.gradeBadge, { backgroundColor: getGradeColor(meal.grade) }]}>
                   <Text style={styles.gradeText}>{meal.grade}</Text>
@@ -236,16 +316,20 @@ export default function CollectionScreen() {
                 
                 <View style={styles.mealStats}>
                   <View style={styles.statMini}>
-                    <Text style={styles.statMiniLabel}>⚡</Text>
-                    <Text style={styles.statMiniValue}>{meal.energyValue}</Text>
+                    <Text style={styles.statMiniLabel}>🔥</Text>
+                    <Text style={styles.statMiniValue}>{meal.calories}</Text>
                   </View>
                   <View style={styles.statMini}>
-                    <Text style={styles.statMiniLabel}>🍽️</Text>
-                    <Text style={styles.statMiniValue}>{meal.hungerValue}</Text>
+                    <Text style={styles.statMiniLabel}>💪</Text>
+                    <Text style={styles.statMiniValue}>{meal.protein}%</Text>
                   </View>
                   <View style={styles.statMini}>
-                    <Text style={styles.statMiniLabel}>😊</Text>
-                    <Text style={styles.statMiniValue}>{meal.happinessValue}</Text>
+                    <Text style={styles.statMiniLabel}>🌾</Text>
+                    <Text style={styles.statMiniValue}>{meal.carbs}%</Text>
+                  </View>
+                  <View style={styles.statMini}>
+                    <Text style={styles.statMiniLabel}>🥑</Text>
+                    <Text style={styles.statMiniValue}>{meal.fats}%</Text>
                   </View>
                 </View>
                 
@@ -255,67 +339,6 @@ export default function CollectionScreen() {
           </View>
         </>
       )}
-    </View>
-  );
-
-  const renderAchievements = () => (
-    <View style={styles.achievementsContainer}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Achievements</Text>
-        <Text style={styles.sectionSubtitle}>Your progress milestones</Text>
-      </View>
-      
-      {achievements.map((achievement) => (
-        <View
-          key={achievement.id}
-          style={[
-            styles.achievementCard,
-            achievement.isUnlocked && styles.achievementUnlocked
-          ]}
-        >
-          <View style={styles.achievementHeader}>
-            <Text style={[
-              styles.achievementEmoji,
-              !achievement.isUnlocked && styles.achievementEmojiLocked
-            ]}>
-              {achievement.emoji}
-            </Text>
-            <View style={styles.achievementInfo}>
-              <Text style={[
-                styles.achievementTitle,
-                !achievement.isUnlocked && styles.achievementTitleLocked
-              ]}>
-                {achievement.title}
-              </Text>
-              <Text style={styles.achievementDescription}>
-                {achievement.description}
-              </Text>
-            </View>
-            <View style={[
-              styles.achievementRarity,
-              { backgroundColor: getRarityColor(achievement.rarity) }
-            ]}>
-              <Text style={styles.achievementRarityText}>
-                {achievement.rarity}
-              </Text>
-            </View>
-          </View>
-          
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${(achievement.progress / achievement.maxProgress) * 100}%` }
-                ]}
-              />
-            </View>
-            <Text style={styles.progressText}>
-              {achievement.progress}/{achievement.maxProgress}
-            </Text>
-          </View>
-        </View>
-      ))}
     </View>
   );
 
@@ -419,15 +442,6 @@ export default function CollectionScreen() {
             </TouchableOpacity>
             
             <TouchableOpacity
-              style={[styles.tab, activeTab === 'achievements' && styles.activeTab]}
-              onPress={() => setActiveTab('achievements')}
-            >
-              <Text style={[styles.tabText, activeTab === 'achievements' && styles.activeTabText]}>
-                🏆 Achievements
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
               style={[styles.tab, activeTab === 'pets' && styles.activeTab]}
               onPress={() => setActiveTab('pets')}
             >
@@ -450,7 +464,6 @@ export default function CollectionScreen() {
             }
           >
             {activeTab === 'meals' && renderMealNFTs()}
-            {activeTab === 'achievements' && renderAchievements()}
             {activeTab === 'pets' && renderPetCollection()}
           </ScrollView>
         </View>
@@ -591,16 +604,18 @@ const styles = StyleSheet.create({
   mealGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 10,
+    paddingHorizontal: 20,
     gap: 10,
   },
   mealCard: {
-    width: (width - 60) / 2,
     backgroundColor: Colors.cardBackground,
     borderRadius: 12,
-    padding: 16,
+    padding: 12,
+    marginBottom: 12,
     borderWidth: 2,
     position: 'relative',
+    width: (width - 60) / 2,
+    height: 220, // Fixed height to accommodate image
   },
   rarityBadge: {
     position: 'absolute',
@@ -628,6 +643,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
     minHeight: 32,
+  },
+  mealHash: {
+    fontSize: 14,
+    fontFamily: 'Blockblueprint',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 8,
   },
   gradeBadge: {
     alignSelf: 'center',
@@ -667,87 +689,20 @@ const styles = StyleSheet.create({
     color: '#8A8A8A',
     textAlign: 'center',
   },
-
-  // Achievements
-  achievementsContainer: {
-    paddingBottom: 20,
+  mealImage: {
+    width: '100%',
+    height: 80,
+    borderRadius: 8,
+    marginBottom: 8,
   },
-  achievementCard: {
-    backgroundColor: Colors.cardBackground,
-    marginHorizontal: 20,
-    marginBottom: 12,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  achievementUnlocked: {
-    borderColor: Colors.primary,
+  mealImagePlaceholder: {
+    width: '100%',
+    height: 80,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: Colors.darkCard,
-  },
-  achievementHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  achievementEmoji: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  achievementEmojiLocked: {
-    opacity: 0.3,
-  },
-  achievementInfo: {
-    flex: 1,
-  },
-  achievementTitle: {
-    fontSize: 16,
-    fontFamily: 'Blockblueprint',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  achievementTitleLocked: {
-    color: '#8A8A8A',
-  },
-  achievementDescription: {
-    fontSize: 12,
-    fontFamily: 'Blockblueprint',
-    color: '#B0B0B0',
-    lineHeight: 16,
-  },
-  achievementRarity: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  achievementRarityText: {
-    fontSize: 10,
-    fontFamily: 'Blockblueprint',
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  progressBar: {
-    flex: 1,
-    height: 6,
-    backgroundColor: Colors.border,
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginRight: 8,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: Colors.primary,
-    borderRadius: 3,
-  },
-  progressText: {
-    fontSize: 12,
-    fontFamily: 'Blockblueprint',
-    color: '#B0B0B0',
-    minWidth: 40,
+    marginBottom: 8,
   },
 
   // Pet Collection

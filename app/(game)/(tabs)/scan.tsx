@@ -312,21 +312,19 @@ export default function ScanScreen() {
         showGameAlert(
           '🎉 Feeding Successful!',
           `Your pet loved the ${analysis.foodName}!\n\n` +
-          `Nutrition Details:\n` +
-          `• Calories: ${analysis.calories}\n` +
-          `• Protein: ${analysis.protein}%\n` +
-          `• Carbs: ${analysis.carbs}%\n` +
-          `• Fats: ${analysis.fats}%\n` +
-          `• Vitamins: ${analysis.vitamins}%\n` +
-          `• Minerals: ${analysis.minerals}%\n` +
-          `• Fiber: ${analysis.fiber}%\n\n` +
-          `Grade: ${getNutritionGrade(analysis)} • Confidence: ${Math.round(analysis.confidence * 100)}%`,
+          `Grade: ${getNutritionGrade(analysis)} • Confidence: ${Math.round(analysis.confidence * 100)}%\n\n` +
+          `Meal NFT created and stored on IPFS!`,
           'success',
           [
             {
+              text: 'View Collection',
+              onPress: () => router.push('/(game)/(tabs)/collection'),
+              variant: 'success'
+            },
+            {
               text: 'View Pet',
               onPress: () => router.push('/(game)/(tabs)/home'),
-              variant: 'success'
+              variant: 'primary'
             },
           ]
         );
